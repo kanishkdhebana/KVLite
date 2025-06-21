@@ -18,7 +18,7 @@ static void die(const char* message) {
     abort() ;
 }
 
-int32_t writeFull(int clientFd, const uint8_t* buffer, size_t size) {
+static int32_t writeAll(int clientFd, const uint8_t* buffer, size_t size) {
     while (size > 0) {
         ssize_t bytesWritten = write(clientFd, buffer, size) ;
 
@@ -36,7 +36,7 @@ int32_t writeFull(int clientFd, const uint8_t* buffer, size_t size) {
 }
 
 
-int32_t readFull(int clientFd, uint8_t* buffer, size_t size) {
+static int32_t readFull(int clientFd, uint8_t* buffer, size_t size) {
     while (size > 0) {
         int bytesRead = read(clientFd, buffer, size) ;
 
@@ -59,68 +59,105 @@ static void bufferAppend(std::vector<uint8_t> &buf, const uint8_t *data, size_t 
 }
 
 
-int32_t sendRequest(int fd, const uint8_t* data, size_t size) {
-    if (size > kMaxMessage) {
-        fprintf(stderr, "Message too long: %zu bytes\n", size) ;
+static int32_t sendRequest(int fd, const std::vector<std::string> &cmd) {
+    uint32_t numArgs = cmd.size() ;
+    uint32_t payloadLength = 4 ;
+
+    for (const auto &arg : cmd) {
+        payloadLength += 4 + arg.length() ; 
+    }
+
+    if (payloadLength > kMaxMessage) {
+        fprintf(stderr, "Message too long: %zu bytes\n", payloadLength) ;
         return -1 ;
     }
 
+
     std::vector<uint8_t> writeBuffer ;
+    writeBuffer.reserve(4 + payloadLength) ;
 
-    bufferAppend(writeBuffer, (const uint8_t*)&size, 4) ;
-    bufferAppend(writeBuffer, data, size) ;
+    uint32_t netPayloadLength = htonl(payloadLength) ;
 
-    int32_t err = writeFull(fd, writeBuffer.data(), writeBuffer.size()) ;
+    bufferAppend(writeBuffer, (const uint8_t*)&netPayloadLength, 4) ;
 
-    if (err) {
-        die("writeFull") ;
+    uint32_t netNumArgs = htonl(numArgs) ;
+    bufferAppend(writeBuffer, (const uint8_t*)&netNumArgs, 4) ;
+
+    for (const auto &arg : cmd) {
+        uint32_t argLength = arg.length() ;
+
+        uint32_t netArgLength = htonl(argLength);
+        bufferAppend(writeBuffer, (const uint8_t*)&netArgLength, 4) ;
+        bufferAppend(writeBuffer, (const uint8_t*)arg.data(), argLength) ;
     }
 
-    return 0 ;
+    return writeAll(fd, writeBuffer.data(), writeBuffer.size()) ;
 }
 
 
-int32_t readResponse(int fd) {
-    std::vector<uint8_t> rbuf(4) ;
+static int32_t readResponse(int fd) {
     errno = 0 ;
+    uint8_t lenBuffer[4] ;
 
-    int32_t err = readFull(fd, &rbuf[0], 4);
+    int32_t err = readFull(fd, lenBuffer, 4) ;
 
-    if (err) {
+    if (err < 0) {
         if (errno == 0) {
             fprintf(stderr, "%s\n", "EOF");
-        }
-
+        } 
+        
         else {
             fprintf(stderr, "%s\n", "read() error");
         }
 
-        return err ;
-    }
-
-    int responseLength = 0 ;
-    memcpy(&responseLength, rbuf.data(), 4) ;
-
-    if (responseLength > kMaxMessage) {
-        fprintf(stderr, "Response too long: %d bytes\n", responseLength) ;
         return -1 ;
     }
 
-    rbuf.resize(4 + responseLength) ;
+    uint32_t responseLength = 0 ;
+    memcpy(&responseLength, lenBuffer, 4) ;
+    responseLength = ntohl(responseLength) ;
 
-    err = readFull(fd, &rbuf[4], responseLength) ;
-
-    if (err) {
-        fprintf(stderr, "read() error") ;
-        return err ;
+    if (responseLength > kMaxMessage) {
+        fprintf(stderr, "Response too long: %u bytes\n", responseLength) ;
+        return -1 ;
     }
 
-    printf("len:%u data:%.*s\n", responseLength, responseLength < 100 ? responseLength : 100, &rbuf[4]) ;
-    return 0 ;
+    std::vector<uint8_t> rbuf(responseLength) ;
+
+    err = readFull(fd, rbuf.data(), responseLength) ;
+
+    if (err < 0) {
+        if (errno == 0) {
+            fprintf(stderr, "%s\n", "EOF");
+        } 
+        
+        else {
+            fprintf(stderr, "%s\n", "read() error");
+        }
+
+        return -1 ;
+    }
+
+    if (responseLength < 4) {
+        fprintf(stderr, "Invalid response length: %u bytes\n", responseLength) ;
+        return -1 ;
+    }
+
+    uint32_t status = 0 ;
+    memcpy(&status, rbuf.data(), 4) ;
+    status = ntohl(status) ;
+
+    const char *dataPtr = (const char*)rbuf.data() + 4 ;
+    size_t dataLength = responseLength - 4 ;        
+
+    printf("  status: %u\n", status);
+    printf("  data: %.*s\n", (int)dataLength, dataPtr);
+
+    return 0;
 }
 
 
-int main() {
+int main(int argc, char **argv) {
     int fd = socket(AF_INET, SOCK_STREAM, 0) ;
 
     if (fd < 0) {
@@ -142,25 +179,24 @@ int main() {
         die("connect") ;
     }
 
-    std::vector<std::string> queryList = {
-        "hello1", "hello2", "hello3",
-        std::string(kMaxMessage, 'z'),
-        "hello5",
+    std::vector<std::string> cmd ;
+
+    for (int i = 1; i < argc; ++i) {
+        cmd.push_back(argv[i]) ;
     } ;
 
-    for (const std::string &s : queryList) {
-        int32_t err = sendRequest(fd, (uint8_t *)s.data(), s.size());
+    int32_t err = sendRequest(fd, cmd);
 
-        if (err) {
-            goto L_DONE;
-        }
+    if (err) {
+        fprintf(stderr, "sendRequest failed\n") ;
+        goto L_DONE ;
     }
-    for (size_t i = 0; i < queryList.size(); ++i) {
-        int32_t err = readResponse(fd);
-        if (err) {
-            goto L_DONE;
-        }
-    }
+
+    err = readResponse(fd);
+    if (err) {
+        fprintf(stderr, "readResponse failed\n") ;
+        goto L_DONE ;
+    }   
 
 L_DONE:
     close(fd);
