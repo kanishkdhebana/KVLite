@@ -1,18 +1,90 @@
-#include <stdint.h>
 #include <assert.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <errno.h>
-#include <vector>
+#include <fcntl.h>
+#include <poll.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
-#include <poll.h>
-#include <fcntl.h>
+#include <vector>
 
 const size_t kMaxMessage = 32 << 20 ;
+
+struct Buffer {
+    uint8_t* bufferBegin ;
+    uint8_t* bufferEnd ;
+    uint8_t* dataStart ;
+    uint8_t* dataEnd ;
+
+    Buffer(size_t size) {
+        bufferBegin = (uint8_t*)malloc(size) ;
+
+        if (!bufferBegin) {
+            perror("malloc") ;
+            exit(EXIT_FAILURE) ;
+        }
+
+        bufferEnd = bufferBegin + size ;
+        dataStart = bufferBegin ;
+        dataEnd = bufferBegin ;
+    }
+    
+    ~Buffer() {
+        free(bufferBegin) ;
+    }
+
+    void append(
+        const uint8_t* data, 
+        size_t size
+    ) {
+        size_t availableSpace = (bufferEnd) - (dataEnd) ;
+
+        if (availableSpace < size) {
+            size_t currentSize = (bufferEnd) - (bufferBegin) ;
+            size_t newSize = (currentSize * 2 > currentSize + size) ? currentSize * 2 : currentSize + size ;
+
+            uint8_t* newBuffer = (uint8_t*)realloc(bufferBegin, newSize);
+
+            if (!newBuffer) {
+                perror("realloc") ;
+                exit(EXIT_FAILURE) ;
+            }
+
+            dataStart = newBuffer + ((dataStart) - (bufferBegin)) ;
+            dataEnd = newBuffer + ((dataEnd) - (bufferBegin)) ;
+            bufferBegin = newBuffer ;
+            bufferEnd = newBuffer + newSize ;
+        }
+
+        memcpy(dataEnd, data, size) ;
+        dataEnd += size ;
+    }
+
+    void consume(  
+        size_t size
+    ) {
+        dataStart += size ;
+
+        if (dataStart == dataEnd) {
+            dataStart = bufferBegin ;
+            dataEnd = bufferBegin ;
+        } 
+        
+        else if (dataStart > dataEnd) {
+            fprintf(stderr, "Buffer underflow\n") ;
+            abort() ;
+        }
+    }
+
+    size_t size() const {
+        return dataEnd - dataStart ;
+    }
+} ;
+
 
 struct Connection {
     int connectionFd = -1 ;
@@ -20,113 +92,82 @@ struct Connection {
     bool wantToWrite = false ;
     bool wantToClose = false ;
 
-    std::vector<uint8_t> readBuffer ;
-    std::vector<uint8_t> writeBuffer ;
+    Buffer* readBuffer ;
+    Buffer* writeBuffer ;
 
-    Connection(int fd) : connectionFd(fd), wantToRead(true), wantToWrite(false), wantToClose(false) {}
+    Connection(int fd)
+        : connectionFd(fd), 
+        wantToRead(true), 
+        wantToWrite(false), 
+        wantToClose(false),
+        readBuffer(new Buffer(4096)),
+        writeBuffer(new Buffer(4096)) {}
+
+    ~Connection() {
+        delete readBuffer;
+        delete writeBuffer;
+    }
 } ;
 
 
 static void die(const char* message) {
     fprintf(stderr, "[%d] %s\n", errno, message) ;
     abort() ;
-}
+}   
 
 static void fdSetNonBlocking(int fd) {
+    errno = 0 ;
     int flags = fcntl(fd, F_GETFL, 0) ;
-    
-    if (flags < 0) {
-        perror("fcntl(F_GETFL)") ;
-        exit(EXIT_FAILURE) ;
+
+    if (errno) {
+        die("fcntl(F_GETFL)") ;
+        return ;
     }
 
     flags |= O_NONBLOCK ;
 
-    if (fcntl(fd, F_SETFL, flags) < 0) {
-        perror("fcntl(F_SETFL)") ;
-        exit(EXIT_FAILURE) ;
+    errno = 0 ;
+    fcntl(fd, F_SETFL, flags) ;
+
+    if (errno) {
+        die("fcntl(F_SETFL)") ;
     }
-}
-
-static void bufferAppend(std::vector<uint8_t>& buffer, const uint8_t* data, size_t size) {
-    if (size == 0) {
-        return ;
-    }
-
-    size_t oldSize = buffer.size() ;
-    buffer.resize(oldSize + size) ;
-    memcpy(buffer.data() + oldSize, data, size) ;
-}
-
-static void bufferConsume(std::vector<uint8_t>& buffer, size_t size) {
-    if (size == 0 || size > buffer.size()) {
-        return ;
-    }
-
-    size_t newSize = buffer.size() - size ;
-    
-    if (newSize > 0) {
-        memmove(buffer.data(), buffer.data() + size, newSize) ;
-    }
-
-    buffer.resize(newSize) ;
 }
 
 static bool tryOneMessage(Connection* conn) {
-    if (conn -> readBuffer.size() < 4) {
-        return false ; // not enough data to read the message length
+
+    if (conn -> readBuffer -> size() < 4) {
+        return false ;
     }
 
     int32_t messageLength = 0 ;
-    memcpy(&messageLength, conn -> readBuffer.data(), 4) ;
-
+    memcpy(&messageLength, conn -> readBuffer -> dataStart, 4) ; 
+    //messageLength = ntohl(messageLength) ;
+    
     if (messageLength < 0 || (size_t)messageLength > kMaxMessage) {
         fprintf(stderr, "Invalid message length: %d\n", messageLength) ;
         conn -> wantToClose = true ;
         return false ;
     }
 
-    if (conn -> readBuffer.size() < (size_t)(4 + messageLength)) {
-        return false ; // not enough data to read the full message
+    if (conn -> readBuffer -> size() < (size_t)(4 + messageLength)) {
+        return false ; 
     }
 
-    const uint8_t* messageData = conn -> readBuffer.data() + 4 ;
+    const uint8_t* messageData = conn -> readBuffer -> dataStart + 4 ;
 
-    bufferAppend(conn -> writeBuffer, (const uint8_t*)& messageLength, 4) ;
-    bufferAppend(conn -> writeBuffer, messageData, messageLength) ;
+    printf("client(len:%d): %.*s\n", messageLength, messageLength < 100 ? messageLength : 100, messageData);
 
+    conn -> writeBuffer -> append((const uint8_t*)& messageLength, 4) ;
+    conn -> writeBuffer -> append(messageData, messageLength) ;
     
-    
-    bufferConsume(conn -> readBuffer, 4 + messageLength) ;
-
-    printf("Client: ") ;
-    for (size_t i = 0; i < messageLength; i++) {
-        if (messageData[i] >= 32 && messageData[i] <= 126) {
-            printf("%c", messageData[i]) ;
-        } 
-        
-        else {
-            printf(".") ; 
-        }
-    }
-    printf("\n") ;
-
-    printf("Server:") ;
-    for (size_t i = 0; i < messageLength; i++) {
-        if (messageData[i] >= 32 && messageData[i] <= 126) {
-            printf("%c", messageData[i]) ;
-        } 
-        
-        else {
-            printf(".") ; 
-        }
-    }
-    printf("\n") ;
+    conn -> readBuffer -> consume(4 + messageLength) ;
 
     return true ;
 }
 
 Connection* handleAccept(int serverFd) {
+
     struct sockaddr_in clientAddress = {} ;
     socklen_t clientAddressLength = sizeof(clientAddress) ;
     
@@ -135,9 +176,14 @@ Connection* handleAccept(int serverFd) {
     if (connectionFd < 0) {
         perror("accept") ;
         return nullptr ;
-    }
+    }   
 
-    printf("Accepted connection from %s:%d\n", inet_ntoa(clientAddress.sin_addr), ntohs(clientAddress.sin_port)) ;
+    uint32_t ip = clientAddress.sin_addr.s_addr;
+
+    fprintf(stderr, "new client from %u.%u.%u.%u:%u\n",
+        ip & 255, (ip >> 8) & 255, (ip >> 16) & 255, ip >> 24,
+        ntohs(clientAddress.sin_port)
+    );
 
     fdSetNonBlocking(connectionFd) ;
 
@@ -145,50 +191,72 @@ Connection* handleAccept(int serverFd) {
 }
 
 
-void handleRead(Connection * conn) {
-    uint8_t buffer[64 * 1024] ;
-    ssize_t bytesRead = read(conn -> connectionFd, buffer, sizeof(buffer)) ;
-
-    if (bytesRead <= 0) {
-        conn -> wantToClose = true ;
-        return ;
-    } 
-
-    bufferAppend(conn -> readBuffer, buffer, bytesRead) ;
-    tryOneMessage(conn) ;
-
-    
-
-    if (conn -> writeBuffer.size() > 0) {
-        conn -> wantToWrite = true ;
-        conn -> wantToRead = false ;
-    } else {
-        conn -> wantToRead = true ;
-        conn -> wantToWrite = false ;
-    }
-}
-
 void handleWrite(Connection * conn) {
     assert(conn -> wantToWrite) ;
     
-    ssize_t bytesWritten = write(conn -> connectionFd, conn -> writeBuffer.data(), conn -> writeBuffer.size()) ;
+    ssize_t bytesWritten = write(
+        conn -> connectionFd, conn -> writeBuffer -> dataStart, conn -> writeBuffer -> size()
+    ) ;
     
+    if (bytesWritten < 0 && errno == EAGAIN) {
+        return ;
+    }
+
     if (bytesWritten < 0) {
         perror("write") ;
         conn -> wantToClose = true ;
         return ;
     }
 
-    bufferConsume(conn -> writeBuffer, bytesWritten) ;
+    conn -> writeBuffer -> consume(bytesWritten) ;
 
-    if (conn -> writeBuffer.size() == 0) {
+    if (conn -> writeBuffer -> size() == 0) {
         conn -> wantToWrite = false ;
-        conn -> wantToRead = true ; // switch back to reading
-    } else {
-        conn -> wantToWrite = true ; // still have data to write
-    }
+        conn -> wantToRead = true ;
+    } 
 }
 
+
+void handleRead(Connection * conn) {
+    uint8_t buffer[64 * 1024] ;
+    ssize_t bytesRead = read(conn -> connectionFd, buffer, sizeof(buffer)) ;
+
+    if (bytesRead < 0 && errno == EAGAIN) {
+        return ;
+    }
+
+    if (bytesRead < 0) {
+        perror("read") ;
+        conn -> wantToClose = true ;
+        return ;
+    } 
+
+    if (bytesRead == 0) {
+        if (conn -> readBuffer -> size() == 0) {
+            perror("client closed") ;
+        } 
+        
+        else {
+            perror("unexpected EOF") ;
+        }
+        
+        conn -> wantToClose = true ;
+        return ;
+    }
+
+    conn -> readBuffer -> append(buffer, bytesRead) ;
+
+    while (tryOneMessage(conn)) {   
+    }
+    
+
+    if (conn -> writeBuffer -> size() > 0) {
+        conn -> wantToWrite = true ;
+        conn -> wantToRead = false ;
+
+        return handleWrite(conn) ;
+    }
+}
 
 
 int main() {
@@ -218,20 +286,20 @@ int main() {
     // Set the socket to non-blocking mode
     fdSetNonBlocking(serverFd) ;
 
-    int listenResult = listen(serverFd, 2) ;
+    int listenResult = listen(serverFd, 12000) ;
     
     if (listenResult < 0) {
         die("listen") ;
     }
 
     std::vector<Connection*> connections ;  
-    std::vector<struct pollfd> pollArguments ;
+    std::vector<struct pollfd> pollFds ;
 
     while (true) {
-        pollArguments.clear() ;
+        pollFds.clear() ;
 
         struct pollfd pfd = {serverFd, POLLIN, 0} ;
-        pollArguments.push_back(pfd) ;
+        pollFds.push_back(pfd) ;
 
         for (Connection* conn: connections) {
             if (!conn) {
@@ -248,10 +316,10 @@ int main() {
                 pfd.events |= POLLOUT ;
             }
 
-            pollArguments.push_back(pfd) ;
+            pollFds.push_back(pfd) ;
         }
 
-        int pollResult = poll(pollArguments.data(), pollArguments.size(), -1) ;
+        int pollResult = poll(pollFds.data(), pollFds.size(), -1) ;
 
         if (pollResult < 0 && errno == EINTR) {
             continue ;
@@ -261,7 +329,7 @@ int main() {
             die("poll") ;
         }
 
-        if (pollArguments[0].revents) {
+        if (pollFds[0].revents) {
             Connection* newConnection = handleAccept(serverFd) ;
 
             if (newConnection) {
@@ -275,8 +343,8 @@ int main() {
         }
 
 
-        for (size_t i = 1; i < pollArguments.size(); i++) { // skip the server socket
-            struct pollfd pfd = pollArguments[i] ;
+        for (size_t i = 1; i < pollFds.size(); i++) { // skip the server socket
+            struct pollfd pfd = pollFds[i] ;
             uint32_t ready = pfd.revents ;
             Connection* conn = connections[pfd.fd] ;
 
