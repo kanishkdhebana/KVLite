@@ -35,13 +35,12 @@ This project is a **work-in-progress**. The primary goal is educational. Key are
 The project has no external dependencies and can be compiled with a standard C++ compiler like `g++`.
 
 ```bash
-# Compile the server
-g++ -o server server.cpp
+# Makefile
+make
 
 # Compile the client
 g++ -o client client.cpp
 ```
-
 ---
 
 ## Usage
