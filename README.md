@@ -1,35 +1,24 @@
 # KV-Lite: In-Memory Key-Value Store
 
-KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in C++. It is built as a learning exercise in C++ network programming and is not intended for production use.
+KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in modern C++. It supports basic Redis-like commands (`SET`, `GET`, `DEL`, `CLEAR`) over a custom binary protocol, built to deepen understanding of low-level network programming, memory management, and data structures.
 
 ---
 
-## Current Status:
-Commands SET, GET, DEL are implemented. The server handles client connections and maintains an in-memory key-value store using a custom hash table.
+## Highlights
+
+- **Custom Hash Table**: Implements a basic separate-chaining hash table from scratch.
+- **Non-Blocking I/O**: Uses `poll()` for concurrent client handling without threads.
+- **Custom Binary Protocol**: Lightweight protocol with explicit framing for commands and responses.
+- **Minimal Dependencies**: No external libraries required.
 
 ---
 
-## Features
+## Current Features
 
-- **In-Memory Storage:** All data is stored in memory and will be lost when the server stops.
-- **Non-Blocking I/O:** Uses `poll()` to handle multiple client connections without threads.
-- **Simple Binary Protocol:** A custom, straightforward binary protocol for client-server communication.
-- **Core Commands:** Implements basic key-value operations:
-  - `set <key> <value>`
-  - `get <key>`
-  - `del <key>`
-  - `clear` (deletes all keys)
-
----
-
-## Project Status
-
-This project is a **work-in-progress**. The primary goal is educational. Key areas for future development include:
-
-- Data persistence to disk.
-- Improved error handling and reporting.
-- Concurrency and multi-threading.
-- Support for more complex data types.
+- **SET**, **GET**, **DEL**, **CLEAR** commands.
+- Handles multiple client connections via a single-threaded loop.
+- All data is stored in-memory (volatile).
+- Well-documented request/response protocol.
 
 ---
 
