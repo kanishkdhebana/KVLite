@@ -1,6 +1,7 @@
 #include "handler.h"
 #include "connection.h"
 #include "util.h"
+#include "hashtable.h"
 
 #include <cstdio>
 #include <cstdlib>   

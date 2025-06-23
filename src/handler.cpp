@@ -14,7 +14,6 @@
 #include <netinet/in.h> // sockaddr_in
 
 
-
 Connection* handleAccept(int serverFd) {
 
     struct sockaddr_in clientAddress = {} ;

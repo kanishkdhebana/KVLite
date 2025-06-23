@@ -7,16 +7,14 @@
 #include "buffer.h"
 #include "connection.h"
 
+const size_t kMaxMessage = 32 << 20 ;
+const size_t kMaxArgs = 200 * 1000;
 
 struct Response {
     uint32_t status = 0 ;
     std::vector<uint8_t> data ;
 } ;
 
-bool readU32(const uint8_t*& data, const uint8_t* end, uint32_t& value) ;
-bool readString(const uint8_t*& data, const uint8_t* end, std::string& str, uint32_t length) ;
-int32_t parseRequest(const uint8_t* data, size_t size, std::vector<std::string>& cmd) ; 
-void makeResponse(Buffer* writeBuffer, const Response& response) ;
 bool tryOneRequest(Connection* conn) ;
 
 #endif

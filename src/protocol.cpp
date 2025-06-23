@@ -4,10 +4,8 @@
 #include "datastore.h"
 #include <cstring>
 
-const size_t kMaxMessage = 32 << 20 ;
-const size_t kMaxArgs = 200 * 1000;
 
-bool readU32(
+static bool readU32(
     const uint8_t*& data, 
     const uint8_t* end, 
     uint32_t& value
@@ -23,7 +21,8 @@ bool readU32(
     return true ;
 }
 
-bool readString(
+
+static bool readString(
     const uint8_t*& data, 
     const uint8_t* end, 
     std::string& str, 
@@ -39,7 +38,8 @@ bool readString(
     return true ;
 }
 
-int32_t parseRequest(
+
+static int32_t parseRequest(
     const uint8_t* data, 
     size_t size, 
     std::vector<std::string>& cmd
@@ -82,6 +82,7 @@ int32_t parseRequest(
 
     return 0 ;
 }
+
 
 void makeResponse(
     Buffer* writeBuffer, 

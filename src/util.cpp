@@ -4,8 +4,6 @@
 #include <cerrno>   
 #include <fcntl.h>
   
- 
-
 
 void die(const char* message) {
     perror(message) ;

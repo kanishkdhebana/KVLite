@@ -1,11 +1,13 @@
 # Compiler and flags
 CXX = g++-15
-CXXFLAGS = -std=c++17 -Wall -Wextra -Iinclude
+CXXFLAGS = -std=c++17 -Wall -Wextra -g -Iinclude
 
 # Source files
 SRC_DIR = src
 SRCS = $(wildcard $(SRC_DIR)/*.cpp) server.cpp
-OBJS = $(SRCS:.cpp=.o)
+# OBJS = $(SRCS:.cpp=.o)
+OBJS = $(patsubst %.cpp, %.o, $(SRCS))
+
 
 # Output
 TARGET = server
