@@ -1,8 +1,11 @@
 # KV-Lite: In-Memory Key-Value Store
 
-![Status](https://img.shields.io/badge/status-work_in_progress-yellow)
-
 KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in C++. It is built as a learning exercise in C++ network programming and is not intended for production use.
+
+---
+
+## Current Status:
+Commands SET, GET, DEL are implemented. The server handles client connections and maintains an in-memory key-value store using a custom hash table.
 
 ---
 
