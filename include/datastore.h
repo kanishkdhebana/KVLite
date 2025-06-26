@@ -3,7 +3,7 @@
 
 
 #define container_of(ptr, T, member) \
-    ((T *)( (char *)ptr - offsetof(T, member) ))
+    ((T *)( (char *)ptr - offsetof(T, member) )) 
 
 
 #include "protocol.h"
@@ -13,17 +13,22 @@
 #include <vector>
 #include <cstddef>
 
-struct Response ;
 
-// enum {
-//     RES_OK = 0,
-//     RES_ERR = 1,
-//     RES_NX = 2
-// };
+enum ResponseStatus{
+    RES_OK = 0,
+    RES_ERR = 1,
+    RES_NX = 2
+}; 
 
-constexpr int RES_OK = 0;
-constexpr int RES_NX = 1;
-constexpr int RES_ERR = 2;
+enum Tag {
+    TAG_NIL = 0,
+    TAG_ERROR = 1, 
+    TAG_STRING = 2, 
+    TAG_INT = 3, 
+    TAG_DOUBLE = 4, 
+    TAG_ARRAY = 5
+} ;
+
 
 struct {
     HMap db ;
@@ -36,6 +41,6 @@ struct Entry {
     std::string value ;
 } ;
 
-void doRequest(std::vector<std::string>& cmd, Response& out) ;
+void doRequest(std::vector<std::string>& cmd, Buffer& out) ;
 
 #endif

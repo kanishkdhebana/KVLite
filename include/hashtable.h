@@ -30,5 +30,8 @@ void hmHelpRehashing(HMap* hmap) ;
 HNode* hmLookup(HMap* hmap,HNode* key,bool (*equal)(const HNode*, const HNode*)) ;
 void hmInsert(HMap* hmap,HNode* node) ;
 HNode* hmDelete(HMap* hmap,HNode* key,bool (*equals)(const HNode*, const HNode*)) ;
+void hmClear(HMap* hmap) ;
+size_t hmSize(HMap* hmap) ;
+void hmForEach(HMap* hmap, bool (*f)(HNode*, void*), void* arg) ;
 
 #endif

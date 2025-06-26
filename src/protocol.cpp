@@ -35,6 +35,7 @@ static bool readString(
     str.assign((const char*)data, length) ;
     data += length ;
 
+
     return true ;
 }
 
@@ -43,7 +44,7 @@ static int32_t parseRequest(
     const uint8_t* data, 
     size_t size, 
     std::vector<std::string>& cmd
-) {
+) {    
     cmd.clear() ;
     const uint8_t* end = data + size ;
     uint32_t numStrings = 0 ;
@@ -72,31 +73,61 @@ static int32_t parseRequest(
             fprintf(stderr, "Invalid string data\n") ;
             return -1 ;
         }
-
     }
+
 
     if (data != end) {
         fprintf(stderr, "Extra data at the end of request\n") ;
         return -1 ;
     }
 
+    // printf("Parsed command: ");
+    // for (size_t i = 0; i < cmd.size(); ++i) {
+    //     printf("%s%s", cmd[i].c_str(), i + 1 == cmd.size() ? "\n" : " ");
+    // }
+
     return 0 ;
 }
 
 
-void makeResponse(
-    Buffer* writeBuffer, 
-    const Response& response
-) {
-    uint32_t responseBodyLength = 4 + response.data.size() ;
-    uint32_t netResponseLength = htonl(responseBodyLength) ;
-    uint32_t netStatus = htonl(response.status) ;
+// void makeResponse(
+//     Buffer* writeBuffer, 
+//     const Response& response
+// ) {
+//     uint32_t responseBodyLength = 4 + response.data.size() ;
+//     uint32_t netResponseLength = htonl(responseBodyLength) ;
+//     uint32_t netStatus = htonl(response.status) ;
 
     
-    writeBuffer -> append((const uint8_t*)&netResponseLength, 4) ;
-    writeBuffer -> append((const uint8_t*)&netStatus, 4) ;
-    writeBuffer -> append(response.data.data(), response.data.size()) ;
+//     writeBuffer -> append((const uint8_t*)&netResponseLength, 4) ;
+//     writeBuffer -> append((const uint8_t*)&netStatus, 4) ;
+//     writeBuffer -> append(response.data.data(), response.data.size()) ;
+// }
+
+static void responseBegin(Buffer& out, size_t* header) {
+    *header = out.size() ;
+    out.append((const uint8_t*)"\x00\x00\x00\x00", 4) ; // placeholder for length
 }
+
+static size_t responseSize(Buffer& out, size_t header) {
+    return out.size() - header - 4 ;
+}
+
+static void responseEnd(Buffer& out, size_t* header) {
+    size_t messageSize = responseSize(out, *header) ;
+
+    if (messageSize > kMaxMessage) {
+        fprintf(stderr, "Response too large: %zu bytes\n", messageSize) ;
+        out.status = ResponseStatus::RES_ERR ;
+        out.consume(messageSize + 4) ; 
+        return ;      
+    }
+
+
+    uint32_t netMessageSize = htonl((uint32_t)messageSize) ;
+    memcpy(out.dataStart + *header, &netMessageSize, 4) ; 
+}
+
 
 //  ______________________________________
 // | nstr | len | str1 | len | str2 | ... |
@@ -105,7 +136,6 @@ void makeResponse(
 
 
 bool tryOneRequest(Connection* conn) {
-
     if (conn -> readBuffer -> size() < 4) {
         return false ;
     }
@@ -126,8 +156,6 @@ bool tryOneRequest(Connection* conn) {
 
     const uint8_t* request = conn -> readBuffer -> dataStart + 4 ;
 
-    printf("client(len:%d): %.*s\n", requestLength, requestLength < 100 ? requestLength : 100, request);
-
     std::vector<std::string> cmd ;
 
     if (parseRequest(request, requestLength, cmd) < 0) {
@@ -136,10 +164,19 @@ bool tryOneRequest(Connection* conn) {
         return false ;
     }
 
-    Response response ;
-    doRequest(cmd, response) ;
-    makeResponse(conn -> writeBuffer, response) ;
-    
+    // printf("Parsed command: ");
+    // for (size_t i = 0; i < cmd.size(); ++i) {
+    //     printf("%s%s", cmd[i].c_str(), i + 1 == cmd.size() ? "\n" : " ");
+    // }
+
+
+    size_t headerPos = 0 ;
+
+    responseBegin(*conn -> writeBuffer, &headerPos) ;
+    doRequest(cmd, *conn -> writeBuffer) ;
+    responseEnd(*conn -> writeBuffer, &headerPos) ;
+
+   
 
     // conn -> writeBuffer -> append((const uint8_t*)& requestLength, 4) ;
     // conn -> writeBuffer -> append(request, requestLength) ;

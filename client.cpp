@@ -10,6 +10,32 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <iostream>  
+#include <cstdint>
+
+
+#ifdef _WIN32
+    #include <winsock2.h>
+    #define be64toh(x) _byteswap_uint64(x)
+#elif defined(__APPLE__)
+    #include <libkern/OSByteOrder.h>
+    #define be64toh(x) OSSwapBigToHostInt64(x)
+#else
+    #include <endian.h>
+#endif
+  
+
+
+
+enum Tag {
+    TAG_NIL = 0,
+    TAG_ERROR = 1,
+    TAG_STRING = 2,
+    TAG_INT = 3,
+    TAG_DOUBLE = 4,
+    TAG_ARRAY = 5
+};
+
 
 const size_t kMaxMessage = 4096 ;
 
@@ -95,66 +121,132 @@ static int32_t sendRequest(int fd, const std::vector<std::string> &cmd) {
 }
 
 
+// static int32_t readResponse(int fd) {
+//     errno = 0 ;
+//     uint8_t lenBuffer[4] ;
+
+//     int32_t err = readFull(fd, lenBuffer, 4) ;
+
+//     if (err < 0) {
+//         if (errno == 0) {
+//             fprintf(stderr, "%s\n", "EOF");
+//         } 
+        
+//         else {
+//             fprintf(stderr, "%s\n", "read() error");
+//         }
+
+//         return -1 ;
+//     }
+
+//     uint32_t responseLength = 0 ;
+//     memcpy(&responseLength, lenBuffer, 4) ;
+//     responseLength = ntohl(responseLength) ;
+
+//     if (responseLength > kMaxMessage) {
+//         fprintf(stderr, "Response too long: %u bytes\n", responseLength) ;
+//         return -1 ;
+//     }
+
+//     std::vector<uint8_t> rbuf(responseLength) ;
+
+//     err = readFull(fd, rbuf.data(), responseLength) ;
+
+//     if (err < 0) {
+//         if (errno == 0) {
+//             fprintf(stderr, "%s\n", "EOF");
+//         } 
+        
+//         else {
+//             fprintf(stderr, "%s\n", "read() error");
+//         }
+
+//         return -1 ;
+//     }
+
+//     if (responseLength < 4) {
+//         fprintf(stderr, "Invalid response length: %u bytes\n", responseLength) ;
+//         return -1 ;
+//     }
+
+//     uint32_t status = 0 ;
+//     memcpy(&status, rbuf.data(), 4) ;
+//     status = ntohl(status) ;
+
+//     const char *dataPtr = (const char*)rbuf.data() + 4 ;
+//     size_t dataLength = responseLength - 4 ;        
+
+//     printf("  status: %u\n", status);
+//     printf("  data: %.*s\n", (int)dataLength, dataPtr);
+
+//     return 0;
+// }
+
+
 static int32_t readResponse(int fd) {
-    errno = 0 ;
-    uint8_t lenBuffer[4] ;
+    uint32_t netLen;
+    if (read(fd, &netLen, 4) != 4) {
+        std::cerr << "Failed to read response length\n";
+        return 1;
+    }
 
-    int32_t err = readFull(fd, lenBuffer, 4) ;
+    uint32_t len = ntohl(netLen);
+    if (len == 0 || len > 1024 * 1024) {
+        std::cerr << "Invalid response length: " << len << " bytes\n";
+        return 1;
+    }
 
-    if (err < 0) {
-        if (errno == 0) {
-            fprintf(stderr, "%s\n", "EOF");
-        } 
-        
-        else {
-            fprintf(stderr, "%s\n", "read() error");
+    std::vector<uint8_t> buffer(len);
+    if (read(fd, buffer.data(), len) != (ssize_t)len) {
+        std::cerr << "Failed to read full response payload\n";
+        return 1;
+    }
+
+    size_t offset = 0;
+    uint8_t tag = buffer[offset++];
+
+    switch (tag) {
+        case TAG_NIL:
+            std::cout << "status: NX\n";
+            std::cout << "data: (nil)\n";
+            break;
+
+        case TAG_STRING: {
+            if (offset + 4 > len) return 1;
+            uint32_t strLen;
+            memcpy(&strLen, buffer.data() + offset, 4);
+            strLen = ntohl(strLen);
+            offset += 4;
+            if (offset + strLen > len) return 1;
+            std::string value((char*)(buffer.data() + offset), strLen);
+            std::cout << "status: OK\n";
+            std::cout << "data: " << value << "\n";
+            break;
         }
 
-        return -1 ;
-    }
-
-    uint32_t responseLength = 0 ;
-    memcpy(&responseLength, lenBuffer, 4) ;
-    responseLength = ntohl(responseLength) ;
-
-    if (responseLength > kMaxMessage) {
-        fprintf(stderr, "Response too long: %u bytes\n", responseLength) ;
-        return -1 ;
-    }
-
-    std::vector<uint8_t> rbuf(responseLength) ;
-
-    err = readFull(fd, rbuf.data(), responseLength) ;
-
-    if (err < 0) {
-        if (errno == 0) {
-            fprintf(stderr, "%s\n", "EOF");
-        } 
-        
-        else {
-            fprintf(stderr, "%s\n", "read() error");
+        case TAG_INT: {
+            if (offset + 8 > len) return 1;
+            int64_t val;
+            memcpy(&val, buffer.data() + offset, 8);
+            val = be64toh(val);
+            std::cout << "status: OK\n";
+            std::cout << "data: " << val << "\n";
+            break;
         }
 
-        return -1 ;
+        case TAG_ERROR:
+            std::cerr << "status: ERR\n";
+            std::cerr << "data: (error message)\n"; 
+            break;
+
+        default:
+            std::cerr << "Unknown tag: " << (int)tag << "\n";
+            return 1;
     }
-
-    if (responseLength < 4) {
-        fprintf(stderr, "Invalid response length: %u bytes\n", responseLength) ;
-        return -1 ;
-    }
-
-    uint32_t status = 0 ;
-    memcpy(&status, rbuf.data(), 4) ;
-    status = ntohl(status) ;
-
-    const char *dataPtr = (const char*)rbuf.data() + 4 ;
-    size_t dataLength = responseLength - 4 ;        
-
-    printf("  status: %u\n", status);
-    printf("  data: %.*s\n", (int)dataLength, dataPtr);
 
     return 0;
 }
+
 
 
 int main(int argc, char **argv) {
@@ -185,7 +277,12 @@ int main(int argc, char **argv) {
         cmd.push_back(argv[i]) ;
     } ;
 
+    printf("client cmd: %s", cmd[0].c_str()) ;
+    printf(" %s \n", cmd[1].c_str()) ;
+
     int32_t err = sendRequest(fd, cmd);
+
+
 
     if (err) {
         fprintf(stderr, "sendRequest failed\n") ;

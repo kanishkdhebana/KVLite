@@ -4,14 +4,14 @@
 #include "util.h"
 #include "protocol.h"
 
-#include <cstdio>     // fprintf, perror, stderr
-#include <cassert>    // assert
-#include <cerrno>     // errno, EAGAIN
-#include <unistd.h>   // read, write
-#include <fcntl.h>    // fcntl
-#include <sys/types.h>  // ssize_t
-#include <sys/socket.h> // accept
-#include <netinet/in.h> // sockaddr_in
+#include <cstdio>     
+#include <cassert>    
+#include <cerrno>    
+#include <unistd.h>  
+#include <fcntl.h>   
+#include <sys/types.h> 
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 
 Connection* handleAccept(int serverFd) {
@@ -41,11 +41,11 @@ Connection* handleAccept(int serverFd) {
 
 void handleWrite(Connection * conn) {
     assert(conn -> wantToWrite) ;
-    
+
     ssize_t bytesWritten = write(
         conn -> connectionFd, conn -> writeBuffer -> dataStart, conn -> writeBuffer -> size()
     ) ;
-    
+
     if (bytesWritten < 0 && errno == EAGAIN) {
         return ;
     }
@@ -93,6 +93,7 @@ void handleRead(Connection * conn) {
     }
 
     conn -> readBuffer -> append(buffer, bytesRead) ;
+
 
     while (tryOneRequest(conn)) {   
         // Successfully parsed a request, continue to the next one

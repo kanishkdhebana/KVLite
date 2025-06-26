@@ -9,6 +9,7 @@ struct Buffer {
     uint8_t* bufferEnd ;
     uint8_t* dataStart ;
     uint8_t* dataEnd ;
+    uint32_t status = 0 ;
 
     Buffer(size_t size) ; 
     ~Buffer() ;

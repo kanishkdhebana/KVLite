@@ -1,4 +1,6 @@
 #include "datastore.h"
+#include "hashtable.h"
+
 #include <assert.h>
 
 static bool entryEq(const HNode* lhs, const HNode* rhs) {
@@ -22,10 +24,63 @@ static uint64_t strHash(
 }
 
 
+// static void outNil(Buffer& out) {
+//     out.append((uint8_t*)"\x02", Tag::TAG_NIL) ; 
+// }
+
+static void outNil(Buffer& out) {
+    uint8_t tag = TAG_NIL ;
+    out.append(&tag, 1) ;
+
+    out.status = RES_NX ;
+}
+
+
+static void outString(Buffer& out, const char* s, size_t size) {
+    if (size == 0) {
+        out.append((uint8_t*)"", 0) ; 
+        return ;
+    }    
+
+    uint8_t tag = TAG_STRING ;
+    out.append(&tag, 1) ;
+
+    uint32_t len = htonl((uint32_t)size) ;
+    out.append((uint8_t*)&len, 4) ;
+
+    out.append((uint8_t*)s, size) ;
+
+    out.status = RES_OK ;
+}
+
+
+static void outInt(Buffer& out, uint8_t& node) {
+    uint8_t tag = TAG_INT ;
+    out.append(&tag, 1) ;
+
+    int64_t beValue = htobe64(value) ; 
+    out.append((uint8_t*)&beValue, sizeof(beValue)) ;
+
+    out.status = ResponseStatus::RES_OK ;
+}
+
+
+static void outArray(Buffer& out, uint32_t n) {
+    uint8_t tag = TAG_ARRAY ;
+    out.append(&tag, 1) ;
+
+    uint32_t netN = htonl(n) ;
+    out.append((uint8_t*)&netN, sizeof(netN)) ;
+
+    out.status = ResponseStatus::RES_OK ;
+}
+
+
 static void doGet(
     std::vector<std::string>& cmd, 
-    Response& out
+    Buffer& out
 ) {
+
     Entry key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
@@ -33,19 +88,20 @@ static void doGet(
     HNode* node = hmLookup(&g_data.db, &key.node, &entryEq) ;
     
     if (!node) {
-        out.status = RES_NX ;
+        out.status = ResponseStatus::RES_NX ;
         return ;
     }
 
     const std:: string &val = container_of(node, Entry, node) -> value ;
-    assert(val.size() <= kMaxMessage) ;
-    out.data.assign(val.begin(), val.end()) ;
+    
+    return outString(out, val.data(), val.size()) ;
 }
 
 static void doSet(
     std::vector<std::string>& cmd, 
-    Response&
+    Buffer& out
 ) {
+
     Entry key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
@@ -64,11 +120,13 @@ static void doSet(
 
         hmInsert(&g_data.db, &entry -> node) ;
     }
+
+    return outNil(out) ;
 }
 
 static void doDelete(
     std::vector<std::string>& cmd, 
-    Response& 
+    Buffer& out
 ) {
     Entry key ;
     key.key.swap(cmd[1]) ;
@@ -79,13 +137,34 @@ static void doDelete(
     if (node) {
         delete container_of(node, Entry, node) ;
     }
+
+    uint8_t flag = node ? 1 : 0;
+
+    return (outInt(out, flag)) ;
+}
+
+static bool cbKeys(HNode* node, void* arg) {
+    Buffer& out = *(Buffer*)arg ;
+    const std::string& key = container_of(node, Entry, node) -> key ;
+    outString(out, key.data(), key.size()) ;
+    
+    return true ;
+}
+
+
+static void doKeys(
+    Buffer& out
+) {
+    outArray(out, (uint32_t)hmSize(&g_data.db)) ;
+    hmForEach(&g_data.db, &cbKeys, (void*)& out) ;
 }
 
 
 void doRequest(
     std::vector<std::string>& cmd, 
-    Response& out
+    Buffer& out
 ) {
+
     if (cmd.size() == 2 && cmd[0] == "get") {
         return doGet(cmd, out) ;
     } 
@@ -98,8 +177,12 @@ void doRequest(
         return doDelete(cmd, out) ;
     }
 
+    else if (cmd.size() == 1 && cmd[0] == "keys") {
+        return doKeys(out) ;
+    }
+
     else {
         fprintf(stderr, "Unknown command: %s\n", cmd[0].c_str()) ;
-        out.status = RES_ERR ;
+        out.status = ResponseStatus::RES_ERR ;
     }
 }

@@ -150,3 +150,32 @@ HNode* hmDelete(
 
     return NULL ;
 }
+
+
+void hmClear(HMap* hmap) {
+    free(hmap -> newer.table) ;
+    free(hmap -> older.table) ;
+    *hmap = HMap{} ;    
+}
+
+
+size_t hmSize(HMap* hmap) {
+    return hmap -> newer.size + hmap -> older.size ;
+}
+
+static bool hForEach(HTable* htable, bool (*f)(HNode*, void*), void* arg) {
+    for (size_t i = 0; htable -> mask != 0 && i <= htable -> mask; i++) {
+        for (HNode* node = htable -> table[i]; node != NULL; node = node -> next) {
+            if (!f(node, arg)) {
+                return false ;
+            }
+        }
+    }
+
+    return true ;
+}
+
+
+void hmForEach(HMap* hmap, bool (*f)(HNode*, void*), void* arg) {
+    hForEach(&hmap -> newer, f, arg) && hForEach(&hmap -> older, f, arg) ;
+}
