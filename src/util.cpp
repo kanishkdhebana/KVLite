@@ -22,7 +22,7 @@ uint64_t strHash(
   
 
 void die(const char* message) {
-    perror(message) ;
+    logf("%s: %s", message, strerror(errno));
     exit(EXIT_FAILURE) ;
 }
 

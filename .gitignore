@@ -6,3 +6,4 @@ venv
 server
 *.o
 client
+server.log

@@ -5,6 +5,7 @@
 #include "datastore.h"
 #include "avl.h"
 #include "helper_time.h"
+#include "log.h"
 
 #include <cstdio>
 #include <cstdlib>   
@@ -19,6 +20,7 @@
 
 
 int main() {
+    initLog() ;
     int serverFd = socket(AF_INET, SOCK_STREAM, 0) ;
     
     if (serverFd < 0) {
@@ -39,7 +41,7 @@ int main() {
         die("bind") ;
     } 
 
-    printf("Server is listening on port 1234\n") ;
+    logf("Server is listening on port 1234\n");
     
     // Set the socket to non-blocking mode
     fdSetNonBlocking(serverFd) ;
@@ -89,10 +91,9 @@ int main() {
             die("poll") ;
         }
 
-        if (pollFds[0].revents) {
+        if (pollFds[0].revents) {       // pollFds[0] is the server, so just checking for new connection requests.
             handleAccept(serverFd) ;
         }
-
 
         for (size_t i = 1; i < pollFds.size(); i++) { // skip the server socket
             struct pollfd pfd = pollFds[i] ;
@@ -121,4 +122,6 @@ int main() {
 
         processTimers() ;
     } // event loop
+
+    closeLog() ;
 }
