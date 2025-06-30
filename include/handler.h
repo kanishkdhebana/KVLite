@@ -4,7 +4,7 @@
 #include "connection.h"
 
 
-Connection* handleAccept(int serverFd) ;
+int32_t handleAccept(int serverFd) ;
 void handleWrite(Connection * conn) ;
 void handleRead(Connection * conn) ;
 

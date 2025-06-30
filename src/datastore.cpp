@@ -1,26 +1,14 @@
-#include "datastore.h"
-#include "hashtable.h"
+#include "datastore.h"  
+#include "util.h"
 
 #include <assert.h>
 
-static bool entryEq(const HNode* lhs, const HNode* rhs) {
-    Entry* leftEntry = container_of(lhs, Entry, node) ;
-    Entry* rightEntry = container_of(rhs, Entry, node) ;
+GData g_data ;
 
-    return leftEntry -> key == rightEntry -> key ;
-}
-
-static uint64_t strHash(
-    const uint8_t* data, 
-    size_t len
-) {
-    uint64_t hash = 0x811C9DC5 ;
-
-    for (size_t i = 0; i < len; i++) {
-        hash = (hash + data[i]) * 0x01000193 ;
-    }
-
-    return hash ;
+bool entryEq(const HNode *node, const HNode *key) {
+    struct Entry* ent = container_of(node, Entry, node) ;
+    struct LookupKey* keydata = container_of(key, LookupKey, node) ;
+    return ent -> key == keydata -> key ;
 }
 
 
@@ -28,52 +16,7 @@ static uint64_t strHash(
 //     out.append((uint8_t*)"\x02", Tag::TAG_NIL) ; 
 // }
 
-static void outNil(Buffer& out) {
-    uint8_t tag = TAG_NIL ;
-    out.append(&tag, 1) ;
 
-    out.status = RES_NX ;
-}
-
-
-static void outString(Buffer& out, const char* s, size_t size) {
-    if (size == 0) {
-        out.append((uint8_t*)"", 0) ; 
-        return ;
-    }    
-
-    uint8_t tag = TAG_STRING ;
-    out.append(&tag, 1) ;
-
-    uint32_t len = htonl((uint32_t)size) ;
-    out.append((uint8_t*)&len, 4) ;
-
-    out.append((uint8_t*)s, size) ;
-
-    out.status = RES_OK ;
-}
-
-
-static void outInt(Buffer& out, uint8_t& node) {
-    uint8_t tag = TAG_INT ;
-    out.append(&tag, 1) ;
-
-    int64_t beValue = htobe64(value) ; 
-    out.append((uint8_t*)&beValue, sizeof(beValue)) ;
-
-    out.status = ResponseStatus::RES_OK ;
-}
-
-
-static void outArray(Buffer& out, uint32_t n) {
-    uint8_t tag = TAG_ARRAY ;
-    out.append(&tag, 1) ;
-
-    uint32_t netN = htonl(n) ;
-    out.append((uint8_t*)&netN, sizeof(netN)) ;
-
-    out.status = ResponseStatus::RES_OK ;
-}
 
 
 static void doGet(
@@ -81,48 +24,66 @@ static void doGet(
     Buffer& out
 ) {
 
-    Entry key ;
+    LookupKey key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
 
     HNode* node = hmLookup(&g_data.db, &key.node, &entryEq) ;
     
     if (!node) {
-        out.status = ResponseStatus::RES_NX ;
-        return ;
+        return outNil(out) ;
     }
 
-    const std:: string &val = container_of(node, Entry, node) -> value ;
+    Entry* entry = container_of(node, Entry, node) ;
+
+    if (entry -> type != T_STR) {
+        return outError(out, ERR_BAD_TYP, "not a string value") ;
+    } 
     
-    return outString(out, val.data(), val.size()) ;
+    return outString(out, entry -> str.data(), entry -> str.size()) ;
 }
+
+
+static Entry* entryNew(uint32_t type) {
+    Entry *ent = new Entry() ;
+    ent -> type = type ;
+    return ent ;
+}
+
 
 static void doSet(
     std::vector<std::string>& cmd, 
     Buffer& out
 ) {
 
-    Entry key ;
+    LookupKey key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
 
     HNode* node = hmLookup(&g_data.db, &key.node, &entryEq) ;
     
     if (node) {
-        container_of(node, Entry, node) -> value.swap(cmd[2]) ;
+        Entry* entry = container_of(node, Entry, node) ;
+
+        if (entry -> type != T_STR) {
+            return outError(out, ERR_BAD_TYP, "a non-string value exists.") ;
+        }
+
+        entry -> str.swap(cmd[2]) ;
     }
 
     else {
-        Entry *entry = new Entry() ;
+        Entry *entry = entryNew(T_STR) ;
         entry -> key.swap(key.key) ;
         entry -> node.hash = key.node.hash ;
-        entry -> value.swap(cmd[2]) ;
+        entry -> str.swap(cmd[2]) ;
 
         hmInsert(&g_data.db, &entry -> node) ;
     }
 
     return outNil(out) ;
 }
+
 
 static void doDelete(
     std::vector<std::string>& cmd, 

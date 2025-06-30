@@ -1,17 +1,15 @@
 #ifndef DATASTORE_H
 #define DATASTORE_H
 
-
-#define container_of(ptr, T, member) \
-    ((T *)( (char *)ptr - offsetof(T, member) )) 
-
-
 #include "protocol.h"
 #include "hashtable.h"
+#include "zset.h"
+
 #include <map>
 #include <string>
 #include <vector>
 #include <cstddef>
+
 
 
 enum ResponseStatus{
@@ -29,18 +27,46 @@ enum Tag {
     TAG_ARRAY = 5
 } ;
 
+enum EntryType {
+    T_INIT = 0,
+    T_STR = 1,
+    T_ZSET = 2
+} ;
 
-struct {
+enum Error{
+    ERR_UNKNOWN = 1,  
+    ERR_TOO_BIG = 2,
+    ERR_BAD_TYP = 3,  
+    ERR_BAD_ARG = 4
+};
+
+
+struct GData {
     HMap db ;
-} g_data ;
 
+    std::vector<Connection*> fd2conn ;
+    DList idleList ;
+} ;
+
+extern GData g_data; 
 
 struct Entry {
     struct HNode node ;
     std::string key ;
-    std::string value ;
+    
+    uint32_t type = 0 ;
+
+    std::string str ;
+    ZSet zset ;
 } ;
 
+
+struct LookupKey {
+    struct HNode node ; 
+    std::string key ;
+};
+
 void doRequest(std::vector<std::string>& cmd, Buffer& out) ;
+bool entryEq(const HNode *node, const HNode *key) ;
 
 #endif

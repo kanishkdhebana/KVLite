@@ -2,7 +2,9 @@
 #include "connection.h"
 #include "buffer.h"
 #include "util.h"
+#include "datastore.h"
 #include "protocol.h"
+#include "helper_time.h"
 
 #include <cstdio>     
 #include <cassert>    
@@ -14,16 +16,16 @@
 #include <netinet/in.h>
 
 
-Connection* handleAccept(int serverFd) {
+int32_t handleAccept(int serverFd) {
 
     struct sockaddr_in clientAddress = {} ;
     socklen_t clientAddressLength = sizeof(clientAddress) ;
     
-    int connectionFd = accept(serverFd, (struct sockaddr*) &clientAddress, &clientAddressLength) ;
+    int connectionFd = accept(serverFd, (struct sockaddr*)&clientAddress, &clientAddressLength) ;
     
     if (connectionFd < 0) {
         perror("accept") ;
-        return nullptr ;
+        return 1 ;
     }   
 
     uint32_t ip = clientAddress.sin_addr.s_addr;
@@ -35,7 +37,19 @@ Connection* handleAccept(int serverFd) {
 
     fdSetNonBlocking(connectionFd) ;
 
-    return new Connection(connectionFd) ;
+    Connection* conn = new Connection(connectionFd) ;
+    conn -> connectionFd = connectionFd ;
+    conn -> wantToRead = true ;
+    conn -> lastActiveMS = getMonoticMS() ;
+    dlistInsertBefore(&g_data.idleList, &conn -> idleNode) ;
+
+    if (g_data.fd2conn.size() <= (size_t)conn -> connectionFd) {
+        g_data.fd2conn.resize(conn -> connectionFd + 1) ;
+    }
+
+    assert(!g_data.fd2conn[conn -> connectionFd]) ;
+    g_data.fd2conn[conn -> connectionFd] = conn ;
+    return 0 ;
 }
 
 
