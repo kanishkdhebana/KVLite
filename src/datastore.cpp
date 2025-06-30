@@ -1,5 +1,7 @@
 #include "datastore.h"  
 #include "util.h"
+#include "helper_time.h"
+#include "zset.h"
 
 #include <assert.h>
 
@@ -118,6 +120,42 @@ static void doKeys(
 ) {
     outArray(out, (uint32_t)hmSize(&g_data.db)) ;
     hmForEach(&g_data.db, &cbKeys, (void*)& out) ;
+}
+
+void entrySetTTL(Entry* entry, int64_t ttlMS) {
+    if (ttlMS < 0 && entry -> heapIdx != (size_t)-1) {
+        heapDelete(g_data.heap, entry -> heapIdx) ;
+        entry -> heapIdx = -1 ;
+    }
+
+    else if (ttlMS >= 0) {
+        uint64_t expireAt = getMonoticMS() + (uint64_t)ttlMS ;
+        HeapItem item = {expireAt, &entry -> heapIdx} ;
+        heapInsert(g_data.heap, entry -> heapIdx, item) ;
+    }
+}
+
+static void doExpire(
+    Buffer& out,
+    std::vector<std::string>& cmd
+) {
+    int64_t ttlMS = 0 ;
+    
+    if (!str2Int(cmd[2], ttlMS)) {
+        return outError(out, ERR_BAD_ARG, "expect int64") ;
+    }
+
+    LookupKey key ;
+    key.key.swap(cmd[1]) ;
+    key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
+    HNode* node = hmLookup(&g_data.db, &key.node, &entryEq) ;
+
+    if (node) {
+        Entry* entry = container_of(node, Entry, node) ;
+        entrySetTTL(entry, ttlMS) ;
+    }
+
+    return outInt(out, node? 1 : 0) ;
 }
 
 

@@ -19,7 +19,7 @@ void closeLog() {
     if (g_logFile) fclose(g_logFile);
 }
 
-void logf(const char* fmt, ...) {
+void logMessage(const char* fmt, ...) {
     if (!g_logFile) return;
 
     // Optional: prefix with timestamp

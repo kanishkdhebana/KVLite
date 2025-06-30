@@ -4,6 +4,6 @@
 
 void initLog() ;
 void closeLog() ;
-void logf(const char* fmt, ...) ;
+void logMessage(const char* fmt, ...) ;
 
 #endif

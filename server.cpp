@@ -6,6 +6,7 @@
 #include "avl.h"
 #include "helper_time.h"
 #include "log.h"
+#include "heap.h"
 
 #include <cstdio>
 #include <cstdlib>   
@@ -21,6 +22,10 @@
 
 int main() {
     initLog() ;
+
+    threadPoolInit(&g_data.thread_pool, 4);
+    dlistInit(&g_data.idleList) ;
+
     int serverFd = socket(AF_INET, SOCK_STREAM, 0) ;
     
     if (serverFd < 0) {
@@ -41,7 +46,7 @@ int main() {
         die("bind") ;
     } 
 
-    logf("Server is listening on port 1234\n");
+    logMessage("Server is listening on port 1234\n");
     
     // Set the socket to non-blocking mode
     fdSetNonBlocking(serverFd) ;
@@ -53,8 +58,6 @@ int main() {
     }
 
     std::vector<struct pollfd> pollFds ;
-
-    dlistInit(&g_data.idleList);
 
     while (true) {
         pollFds.clear() ;

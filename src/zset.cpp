@@ -13,19 +13,7 @@
 
 static const ZSet k_empty_zset;
 
-static bool str2Double(const std::string& s, double& out) {
-    char* endpoint = NULL ;
-    out = strtod(s.c_str(), &endpoint) ;
 
-    return endpoint == s.c_str() + s.size() && !isnan(out) ;
-}
-
-static bool str2Int(const std::string& s, int64_t& out) {
-    char* endpoint = NULL ;
-    out = strtol(s.c_str(), &endpoint, 10) ;
-
-    return endpoint == s.c_str() + s.size() && !isnan(out) && out >= 0 ;
-}
 
 static size_t outBeginArray(Buffer& out) {
     uint8_t tag = TAG_ARRAY ;
@@ -206,10 +194,10 @@ static void treeDispose(AVLNode* node) {
     znodeDelete(container_of(node, ZNode, tree)) ;
 }
 
-void zsetClear(ZSet** zset) {
-    hmClear(&(*zset) -> hmap) ;
-    treeDispose((*zset) -> root) ;
-    (*zset) -> root = NULL ;
+void zsetClear(ZSet* zset) {
+    hmClear(&zset -> hmap) ;
+    treeDispose(zset -> root) ;
+    zset -> root = NULL ;
 }
 
 ZNode *zsetSeekage(

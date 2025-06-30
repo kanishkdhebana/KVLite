@@ -1,9 +1,12 @@
 #include "util.h"
 #include "datastore.h"
+#include "log.h"
 
 #include <cstdio>
 #include <cstdlib>  
 #include <cerrno>   
+#include <math.h>
+#include <cstring>
 #include <fcntl.h>
 
 
@@ -22,7 +25,7 @@ uint64_t strHash(
   
 
 void die(const char* message) {
-    logf("%s: %s", message, strerror(errno));
+    logMessage("%s: %s", message, strerror(errno));
     exit(EXIT_FAILURE) ;
 }
 
@@ -78,10 +81,10 @@ void outString(Buffer& out, const char* s, size_t size) {
 }
 
 
-void outInt(Buffer& out, uint8_t& node) {
+void outInt(Buffer& out, uint64_t val) {
     uint8_t tag = TAG_INT ;
     out.append(&tag, 1) ;
-    int32_t netValue = htonl((int32_t)node) ;
+    int32_t netValue = htonl((int32_t)val) ;
     out.append((uint8_t*)&netValue, sizeof(netValue)) ;
     out.status = ResponseStatus::RES_OK ;
 }
@@ -99,4 +102,19 @@ void outArray(Buffer& out, uint32_t n) {
     out.append((uint8_t*)&netN, sizeof(netN)) ;
 
     out.status = ResponseStatus::RES_OK ;
+}
+
+
+bool str2Double(const std::string& s, double& out) {
+    char* endpoint = NULL ;
+    out = strtod(s.c_str(), &endpoint) ;
+
+    return endpoint == s.c_str() + s.size() && !isnan(out) ;
+}
+
+bool str2Int(const std::string& s, int64_t& out) {
+    char* endpoint = NULL ;
+    out = strtoll(s.c_str(), &endpoint, 10) ;
+
+    return endpoint == s.c_str() + s.size() && !isnan(out) && out >= 0 ;
 }

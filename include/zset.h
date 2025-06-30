@@ -27,5 +27,6 @@ struct HKey {
 bool zsetInsert(ZSet* zset, const char* name, size_t len, double score) ;
 ZNode* zsetLookup(ZSet* zset, const char* name, size_t len) ;
 void zsetDelete(ZSet* zset, ZNode* node) ;
+void zsetClear(ZSet* zset) ;
 
 #endif

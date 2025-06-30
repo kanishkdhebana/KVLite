@@ -4,6 +4,8 @@
 #include "protocol.h"
 #include "hashtable.h"
 #include "zset.h"
+#include "heap.h"
+#include "thread_pool.h"
 
 #include <map>
 #include <string>
@@ -46,6 +48,8 @@ struct GData {
 
     std::vector<Connection*> fd2conn ;
     DList idleList ;
+    std::vector<HeapItem> heap ;
+    ThreadPool thread_pool ;
 } ;
 
 extern GData g_data; 
@@ -58,6 +62,8 @@ struct Entry {
 
     std::string str ;
     ZSet zset ;
+
+    size_t heapIdx = -1 ;
 } ;
 
 
@@ -68,5 +74,7 @@ struct LookupKey {
 
 void doRequest(std::vector<std::string>& cmd, Buffer& out) ;
 bool entryEq(const HNode *node, const HNode *key) ;
+
+void entrySetTTL(Entry* entry, int64_t ttlMS) ;
 
 #endif
