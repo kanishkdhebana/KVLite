@@ -54,7 +54,8 @@ Interact with the server from another terminal.
 ```bash
 ./client set mykey "hello world"
 # Output:
-#   status: 0 (0=OK, 1=ERR, 2=NX)
+#   status: NX
+#   data: (nil)
 ```
 
 #### Get a Value
@@ -62,7 +63,7 @@ Interact with the server from another terminal.
 ```bash
 ./client get mykey
 # Output:
-#   status: 0 (0=OK, 1=ERR, 2=NX)
+#   status: OK
 #   data: hello world
 ```
 
@@ -71,7 +72,8 @@ Interact with the server from another terminal.
 ```bash
 ./client del mykey
 # Output:
-#   status: 0 (0=OK, 1=ERR, 2=NX)
+#   status: OK
+#   data: (nil)
 ```
 
 #### Get a Non-Existent Key
@@ -79,15 +81,17 @@ Interact with the server from another terminal.
 ```bash
 ./client get mykey
 # Output:
-#   status: 2 (0=OK, 1=ERR, 2=NX)
+#   status: OK
+#   data: (nil)
 ```
 
-#### Clear the Entire Store
+#### List All Keys
 
 ```bash
-./client clear
+./client keys
 # Output:
-#   status: 0 (0=OK, 1=ERR, 2=NX)
+#   status: OK
+#   data: [ "key1", "key2", ... ]
 ```
 
 ---
@@ -110,14 +114,18 @@ Communication is done over a simple binary protocol. All integers are 4-byte uns
 ### Server Response Format
 
 ```
-[Total Payload Length] [Status Code] [Response Data]
+[Total Payload Length] [Tag] [Response Data]
 ```
 
-- **Total Payload Length**: The byte length of the message that follows (i.e., `Status Code + Response Data`).
+- **Total Payload Length**: The byte length of the message that follows (i.e., Tag + Response Data).
 - **Status Code**: A status code indicating the outcome of the operation.
-  - `0`: OK
-  - `1`: Error
-  - `2`: Not Found (NX)
-- **Response Data**: The value associated with a key (for a `get` command) or empty otherwise.
+- **Tag**: Indicates the type of response:
+  - 0: NIL (not found)
+  - 1: ERROR
+  - 2: STRING
+  - 3: INT
+  - 4: DOUBLE
+  - 5: ARRAY
+- **Response Data**: The value associated with a key, an array of keys, or error information.
 
 ---
