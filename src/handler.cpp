@@ -56,9 +56,21 @@ int32_t handleAccept(int serverFd) {
 void handleWrite(Connection * conn) {
     assert(conn -> wantToWrite) ;
 
+    // ...existing code...
+    size_t toWrite = conn->writeBuffer->size();
+    fprintf(stderr, "write %zu bytes to client %d\n", toWrite, conn->connectionFd);
+
+    fprintf(stderr, "data (hex): ");
+    for (size_t i = 0; i < toWrite; ++i) {
+        fprintf(stderr, "%02x ", ((unsigned char*)conn->writeBuffer->dataStart)[i]);
+    }
+    fprintf(stderr, "\n");
+    // ...exist ing code...
+
     ssize_t bytesWritten = write(
-        conn -> connectionFd, conn -> writeBuffer -> dataStart, conn -> writeBuffer -> size()
-    ) ;
+        conn->connectionFd, conn->writeBuffer->dataStart, toWrite
+    );
+
 
     if (bytesWritten < 0 && errno == EAGAIN) {
         return ;
@@ -76,10 +88,14 @@ void handleWrite(Connection * conn) {
         conn -> wantToWrite = false ;
         conn -> wantToRead = true ;
     } 
+
+    
 }
 
 
 void handleRead(Connection * conn) {
+    assert(conn -> wantToRead) ;
+
     uint8_t buffer[64 * 1024] ;
     ssize_t bytesRead = read(conn -> connectionFd, buffer, sizeof(buffer)) ;
 

@@ -23,6 +23,8 @@ pass() {
   echo "${GREEN}PASSED:${RESET} $1"
 }
 
+# SET command:-------------------------------------------------------------------------------------------
+
 # 1) Set a new key
 output=$($CLIENT set foo bar)
 echo "$output"
@@ -32,6 +34,9 @@ echo "$output" | grep -q "status: NX" || fail "SET should return NX for new key"
 output=$($CLIENT set foo baz)
 echo "$output"
 echo "$output" | grep -q "status: NX" || fail "SET should return NX when overwriting existing key"
+
+
+# SET command:-------------------------------------------------------------------------------------------
 
 # 3) Get the key
 output=$($CLIENT get foo)
@@ -43,5 +48,12 @@ echo "$output" | grep -q "data: baz" || fail "GET should return updated value"
 output=$($CLIENT get missingkey)
 echo "$output"
 echo "$output" | grep -q "status: NX" || fail "GET should return NX for missing key"
+
+# KEYS command:-------------------------------------------------------------------------------------------
+
+output=$($CLIENT keys)
+echo "$output"
+echo "$output" | grep -q "status: OK" || fail "SET should return OK for missing key"
+
 
 pass "All tests passed!"

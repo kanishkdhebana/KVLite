@@ -121,68 +121,6 @@ static int32_t sendRequest(int fd, const std::vector<std::string> &cmd) {
 }
 
 
-// static int32_t readResponse(int fd) {
-//     errno = 0 ;
-//     uint8_t lenBuffer[4] ;
-
-//     int32_t err = readFull(fd, lenBuffer, 4) ;
-
-//     if (err < 0) {
-//         if (errno == 0) {
-//             fprintf(stderr, "%s\n", "EOF");
-//         } 
-        
-//         else {
-//             fprintf(stderr, "%s\n", "read() error");
-//         }
-
-//         return -1 ;
-//     }
-
-//     uint32_t responseLength = 0 ;
-//     memcpy(&responseLength, lenBuffer, 4) ;
-//     responseLength = ntohl(responseLength) ;
-
-//     if (responseLength > kMaxMessage) {
-//         fprintf(stderr, "Response too long: %u bytes\n", responseLength) ;
-//         return -1 ;
-//     }
-
-//     std::vector<uint8_t> rbuf(responseLength) ;
-
-//     err = readFull(fd, rbuf.data(), responseLength) ;
-
-//     if (err < 0) {
-//         if (errno == 0) {
-//             fprintf(stderr, "%s\n", "EOF");
-//         } 
-        
-//         else {
-//             fprintf(stderr, "%s\n", "read() error");
-//         }
-
-//         return -1 ;
-//     }
-
-//     if (responseLength < 4) {
-//         fprintf(stderr, "Invalid response length: %u bytes\n", responseLength) ;
-//         return -1 ;
-//     }
-
-//     uint32_t status = 0 ;
-//     memcpy(&status, rbuf.data(), 4) ;
-//     status = ntohl(status) ;
-
-//     const char *dataPtr = (const char*)rbuf.data() + 4 ;
-//     size_t dataLength = responseLength - 4 ;        
-
-//     printf("  status: %u\n", status);
-//     printf("  data: %.*s\n", (int)dataLength, dataPtr);
-
-//     return 0;
-// }
-
-
 static int32_t readResponse(int fd) {
     uint32_t netLen;
     if (read(fd, &netLen, 4) != 4) {
@@ -196,11 +134,15 @@ static int32_t readResponse(int fd) {
         return 1;
     }
 
+    
+
     std::vector<uint8_t> buffer(len);
     if (read(fd, buffer.data(), len) != (ssize_t)len) {
         std::cerr << "Failed to read full response payload\n";
         return 1;
     }
+
+    
 
     size_t offset = 0;
     uint8_t tag = buffer[offset++];
@@ -212,12 +154,19 @@ static int32_t readResponse(int fd) {
             break;
 
         case TAG_STRING: {
-            if (offset + 4 > len) return 1;
+            if (offset + 4 > len) {
+                return 1;
+            }
+
             uint32_t strLen;
             memcpy(&strLen, buffer.data() + offset, 4);
             strLen = ntohl(strLen);
             offset += 4;
-            if (offset + strLen > len) return 1;
+
+            if (offset + strLen > len) {
+                return 1;
+            }
+
             std::string value((char*)(buffer.data() + offset), strLen);
             std::cout << "status: OK\n";
             std::cout << "data: " << value << "\n";
@@ -234,10 +183,66 @@ static int32_t readResponse(int fd) {
             break;
         }
 
+        case TAG_ARRAY: {
+            if (offset + 4 > len) return 1;
+
+            uint32_t arraySize;
+            memcpy(&arraySize, buffer.data() + offset, 4);
+            arraySize = ntohl(arraySize);
+            offset += 4;
+
+            std::cout << "status: OK\n";
+            std::cout << "data: [";
+
+            for (uint32_t i = 0; i < arraySize; ++i) {
+                if (offset >= len) return 1;
+
+                uint8_t itemTag = buffer[offset++];
+                switch (itemTag) {
+                    case TAG_STRING: {
+                        if (offset + 4 > len) return 1;
+                        uint32_t itemLen;
+                        memcpy(&itemLen, buffer.data() + offset, 4);
+                        itemLen = ntohl(itemLen);
+                        offset += 4;
+
+                        if (offset + itemLen > len) return 1;
+                        std::string itemValue((char*)(buffer.data() + offset), itemLen);
+                        offset += itemLen;
+
+                        std::cout << "\"" << itemValue << "\"";
+                        break;
+                    }
+                    case TAG_INT: {
+                        if (offset + 8 > len) return 1;
+                        int64_t itemVal;
+                        memcpy(&itemVal, buffer.data() + offset, 8);
+                        itemVal = be64toh(itemVal);
+                        offset += 8;
+
+                        std::cout << itemVal;
+                        break;
+                    }
+                    default:
+                        std::cerr << "Unknown array item tag: " << (int)itemTag << "\n";
+                        return 1;
+                }
+
+                if (i < arraySize - 1) {
+                    std::cout << ", ";
+                }
+            }
+
+            std::cout << "]\n";
+            break;
+        }
+
         case TAG_ERROR:
             std::cerr << "status: ERR\n";
             std::cerr << "data: (error message)\n"; 
             break;
+
+        
 
         default:
             std::cerr << "Unknown tag: " << (int)tag << "\n";
@@ -271,6 +276,8 @@ int main(int argc, char **argv) {
         die("connect") ;
     }
 
+     
+
     std::vector<std::string> cmd ;
 
     for (int i = 1; i < argc; ++i) {
@@ -278,12 +285,16 @@ int main(int argc, char **argv) {
     } ;
 
     printf("client cmd: %s", cmd[0].c_str()) ;
-    printf(" %s \n", cmd[1].c_str()) ;
+    printf("\n") ;
 
+    if (cmd.size() >= 2) {
+        printf(" %s \n", cmd[1].c_str()) ;
+    }
+    
+   
     int32_t err = sendRequest(fd, cmd);
 
-
-
+    
     if (err) {
         fprintf(stderr, "sendRequest failed\n") ;
         goto L_DONE ;
