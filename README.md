@@ -35,6 +35,32 @@ g++ -o client client.cpp
 ```
 ---
 
+## Basic Time Benchmarks
+
+***These benchmarks are early-stage benchmarks, may not fully represent the performance.***
+
+```bash
+
+Running custom key-value store benchmark...
+
+--- Benchmarking custom key-value store ---
+Avg set time: 0.007 ms
+Avg get time: 0.016 ms
+Avg detete time: 0.008 ms
+
+--- Benchmarking MariaDB ---
+Avg set time: 0.083 ms
+Avg get time: 0.045 ms
+Avg delete time: 0.090 ms
+
+--- Benchmarking MongoDB ---
+Avg set time: 0.094 ms
+Avg get time: 0.091 ms
+Avg delete time: 0.085 ms
+```
+
+---
+
 ## Usage
 
 ### Start the Server
