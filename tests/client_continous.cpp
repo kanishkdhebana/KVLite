@@ -10,6 +10,8 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/ip.h>
+#include <string>
+#include <chrono>
 #include <iostream>  
 #include <cstdint>
 
@@ -24,8 +26,6 @@
     #include <endian.h>
 #endif
   
-
-
 
 enum Tag {
     TAG_NIL = 0,
@@ -149,8 +149,8 @@ static int32_t readResponse(int fd) {
 
     switch (tag) {
         case TAG_NIL:
-            std::cout << "status: NX\n";
-            std::cout << "data: (nil)\n";
+            // std::cout << "status: NX\n";
+            // std::cout << "data: (nil)\n";
             break;
 
         case TAG_STRING: {
@@ -168,8 +168,8 @@ static int32_t readResponse(int fd) {
             }
 
             std::string value((char*)(buffer.data() + offset), strLen);
-            std::cout << "status: OK\n";
-            std::cout << "data: " << value << "\n";
+            // std::cout << "status: OK\n";
+            // std::cout << "data: " << value << "\n";
             break;
         }
 
@@ -178,8 +178,8 @@ static int32_t readResponse(int fd) {
             int64_t val;
             memcpy(&val, buffer.data() + offset, 8);
             val = be64toh(val);
-            std::cout << "status: OK\n";
-            std::cout << "data: " << val << "\n";
+            // std::cout << "status: OK\n";
+            // std::cout << "data: " << val << "\n";
             break;
         }
 
@@ -191,8 +191,8 @@ static int32_t readResponse(int fd) {
             arraySize = ntohl(arraySize);
             offset += 4;
 
-            std::cout << "status: OK\n";
-            std::cout << "data: [";
+            // std::cout << "status: OK\n";
+            // std::cout << "data: [";
 
             for (uint32_t i = 0; i < arraySize; ++i) {
                 if (offset >= len) return 1;
@@ -210,7 +210,7 @@ static int32_t readResponse(int fd) {
                         std::string itemValue((char*)(buffer.data() + offset), itemLen);
                         offset += itemLen;
 
-                        std::cout << "\"" << itemValue << "\"";
+                        // std::cout << "\"" << itemValue << "\"";
                         break;
                     }
                     case TAG_INT: {
@@ -220,32 +220,32 @@ static int32_t readResponse(int fd) {
                         itemVal = be64toh(itemVal);
                         offset += 8;
 
-                        std::cout << itemVal;
+                        // std::cout << itemVal;
                         break;
                     }
                     default:
-                        std::cerr << "Unknown array item tag: " << (int)itemTag << "\n";
+                        // std::cerr << "Unknown array item tag: " << (int)itemTag << "\n";
                         return 1;
                 }
 
                 if (i < arraySize - 1) {
-                    std::cout << ", ";
+                    // std::cout << ", ";
                 }
             }
 
-            std::cout << "]\n";
+            // std::cout << "]\n";
             break;
         }
 
         case TAG_ERROR:
-            std::cerr << "status: ERR\n";
-            std::cerr << "data: (error message)\n"; 
+            // std::cerr << "status: ERR\n";
+            // std::cerr << "data: (error message)\n"; 
             break;
 
         
 
         default:
-            std::cerr << "Unknown tag: " << (int)tag << "\n";
+            // std::cerr << "Unknown tag: " << (int)tag << "\n";
             return 1;
     }
 
@@ -253,17 +253,16 @@ static int32_t readResponse(int fd) {
 }
 
 
-
-int main(int argc, char **argv) {
+int main() {
     int fd = socket(AF_INET, SOCK_STREAM, 0) ;
 
     if (fd < 0) {
         die("socket") ;
     }
 
-    else {
-        printf("Socket created successfully with file descriptor: %d\n", fd) ;
-    }
+    // else {
+    //     printf("Socket created successfully with file descriptor: %d\n", fd) ;
+    // }
 
     struct sockaddr_in serverAddress = {} ;
     serverAddress.sin_family = AF_INET ;
@@ -276,37 +275,65 @@ int main(int argc, char **argv) {
         die("connect") ;
     }
 
-     
+    // Replace your existing commands vector-building block with this:
 
-    std::vector<std::string> cmd ;
+    std::vector<std::vector<std::string>> setCommands;
+    std::vector<std::vector<std::string>> getCommands;
+    std::vector<std::vector<std::string>> delCommands;
 
-    for (int i = 1; i < argc; ++i) {
-        cmd.push_back(argv[i]) ;
-    } ;
-
-    printf("client cmd: %s", cmd[0].c_str()) ;
-    printf("\n") ;
-
-    if (cmd.size() >= 2) {
-        printf(" %s \n", cmd[1].c_str()) ;
-    }
-    
-   
-    int32_t err = sendRequest(fd, cmd);
-
-    
-    if (err) {
-        fprintf(stderr, "sendRequest failed\n") ;
-        goto L_DONE ;
+    // Prepare 1000 SETs
+    for (int i = 0; i < 1000; ++i) {
+        setCommands.push_back({"set", "key" + std::to_string(i), "value" + std::to_string(i)});
     }
 
-    err = readResponse(fd);
-    if (err) {
-        fprintf(stderr, "readResponse failed\n") ;
-        goto L_DONE ;
-    }   
+    // Prepare 1000 GETs
+    for (int i = 0; i < 1000; ++i) {
+        getCommands.push_back({"get", "key" + std::to_string(i)});
+    }
 
-L_DONE:
-    close(fd);
-    return 0;
+    // Prepare 1000 DELs
+    for (int i = 0; i < 1000; ++i) {
+        delCommands.push_back({"del", "key" + std::to_string(i)});
+    }
+
+    // Benchmark SETs
+    auto startSet = std::chrono::steady_clock::now();
+    for (const auto& cmd : setCommands) {
+        if (sendRequest(fd, cmd)) die("sendRequest SET");
+    }
+    for (size_t i = 0; i < setCommands.size(); ++i) {
+        if (readResponse(fd)) die("readResponse SET");
+    }
+    auto endSet = std::chrono::steady_clock::now();
+    double elapsedSetMs = std::chrono::duration_cast<std::chrono::microseconds>(endSet - startSet).count() / 1000.0;
+
+    // Benchmark GETs
+    auto startGet = std::chrono::steady_clock::now();
+    for (const auto& cmd : getCommands) {
+        if (sendRequest(fd, cmd)) die("sendRequest GET");
+    }
+    for (size_t i = 0; i < getCommands.size(); ++i) {
+        if (readResponse(fd)) die("readResponse GET");
+    }
+    auto endGet = std::chrono::steady_clock::now();
+    double elapsedGetMs = std::chrono::duration_cast<std::chrono::microseconds>(endGet - startGet).count() / 1000.0;
+
+    // Benchmark DELs
+    auto startDel = std::chrono::steady_clock::now();
+    for (const auto& cmd : delCommands) {
+        if (sendRequest(fd, cmd)) die("sendRequest DEL");
+    }
+    for (size_t i = 0; i < delCommands.size(); ++i) {
+        readResponse(fd) ;
+    }
+    auto endDel = std::chrono::steady_clock::now();
+    double elapsedDelMs = std::chrono::duration_cast<std::chrono::microseconds>(endDel - startDel).count() / 1000.0;
+
+    printf("\n--- Benchmarking custom key-value store ---\n");
+    printf("Avg set time: %.3f ms\n", elapsedSetMs/setCommands.size());
+    printf("Avg get time: %.3f ms\n", elapsedGetMs/getCommands.size());
+    printf("Avg detete time: %.3f ms\n", elapsedDelMs/delCommands.size());
+
+
+
 }

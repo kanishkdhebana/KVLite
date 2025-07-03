@@ -83,8 +83,8 @@ int main() {
             pollFds.push_back(pfd) ;
         }
 
-        int32_t timeoutMs = nextTimerMS() ;
-        int pollResult = poll(pollFds.data(), pollFds.size(), timeoutMs) ;
+        int32_t timeoutMS = nextTimerMS() ;
+        int pollResult = poll(pollFds.data(), pollFds.size(), timeoutMS) ;
 
         if (pollResult < 0 && errno == EINTR) {
             continue ;

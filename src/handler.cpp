@@ -43,6 +43,8 @@ int32_t handleAccept(int serverFd) {
     conn -> lastActiveMS = getMonoticMS() ;
     dlistInsertBefore(&g_data.idleList, &conn -> idleNode) ;
 
+    printf("time of connection: %lld\n", conn -> lastActiveMS) ;
+
     if (g_data.fd2conn.size() <= (size_t)conn -> connectionFd) {
         g_data.fd2conn.resize(conn -> connectionFd + 1) ;
     }

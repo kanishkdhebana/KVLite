@@ -2,7 +2,6 @@
 .DS_Store
 .vscode
 venv
-*.py
 server
 *.o
 client

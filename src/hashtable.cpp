@@ -58,6 +58,12 @@ static HNode* hDetach(
     HNode** from 
 ) {
     HNode* node = *from ;
+
+    if (node == NULL) {
+    fprintf(stderr, "hDetach error: tried to detach NULL node! from=%p\n", (void*)from);
+    abort();
+}
+
     *from = node -> next ;
     hTable -> size-- ;
     
@@ -78,7 +84,7 @@ void hmHelpRehashing(HMap* hmap) {
     while (nWork < k_rehashing_work && hmap -> older.size > 0) {
         HNode** from = &hmap -> older.table[hmap -> migratePosition] ;
 
-        if (!from) {
+        if (!*from) {
             hmap -> migratePosition++ ;
             continue ;
         }
