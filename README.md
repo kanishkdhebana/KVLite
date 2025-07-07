@@ -1,6 +1,6 @@
 # KV-Lite: In-Memory Key-Value Store
 
-KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in modern C++. It supports basic Redis-like commands (`SET`, `GET`, `DEL`, `CLEAR`) over a custom binary protocol, built to deepen understanding of low-level network programming, memory management, and data structures.
+KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in modern C++. It supports basic Redis-like commands (`SET`, `GET`, `DEL`, `KEYS`, `EXPIRE`) over a custom binary protocol, built to deepen understanding of low-level network programming, memory management, and data structures.
 
 ---
 
@@ -15,7 +15,7 @@ KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store w
 
 ## Current Features
 
-- **SET**, **GET**, **DEL**, **CLEAR** commands.
+- **SET**, **GET**, **DEL**, **KEYS**, **EXPIRE** commands.
 - Handles multiple client connections via a single-threaded loop.
 - All data is stored in-memory (volatile).
 - Well-documented request/response protocol.
@@ -41,22 +41,20 @@ g++ -o client client.cpp
 
 ```bash
 
-Running custom key-value store benchmark...
-
---- Benchmarking custom key-value store ---
-Avg set time: 0.007 ms
-Avg get time: 0.016 ms
-Avg detete time: 0.008 ms
-
 --- Benchmarking MariaDB ---
-Avg set time: 0.083 ms
-Avg get time: 0.045 ms
-Avg delete time: 0.090 ms
+Avg set time: 0.144 ms
+Avg get time: 0.055 ms
+Avg delete time: 0.143 ms
 
 --- Benchmarking MongoDB ---
-Avg set time: 0.094 ms
-Avg get time: 0.091 ms
-Avg delete time: 0.085 ms
+Avg set time: 0.090 ms
+Avg get time: 0.085 ms
+Avg delete time: 0.080 ms
+
+--- Benchmarking custom key-value store (SET/GET/DEL) ---
+Avg set time: 0.044 ms
+Avg get time: 0.055 ms
+Avg delete time: 0.045 ms
 ```
 
 ---
@@ -120,6 +118,13 @@ Interact with the server from another terminal.
 #   data: [ "key1", "key2", ... ]
 ```
 
+#### Set ttl for a key
+```bash
+./client exprie a 10000
+# Output:
+# // not yet implemented
+```
+In this command 10000 means 10000 milliseconds -> 10 seconds. Output server response is not yet implemented.
 ---
 
 ## Network Protocol
