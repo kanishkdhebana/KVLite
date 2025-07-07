@@ -79,29 +79,29 @@ static bool hnodeSame(const HNode *node, const HNode *key) {
 void processTimers() {
     uint64_t nowMS = getMonoticMS() ;
 
-    printf(
-        "Hello from processTimers\n"
-    ) ;
+    // printf(
+    //     "Hello from processTimers\n"
+    // ) ;
 
-    printf(
-        "Current time: %llu ms\n", nowMS
-    ) ;
+    // printf(
+    //     "Current time: %llu ms\n", nowMS
+    // ) ;
 
-    printf("is there any connection in the idleLIst"
-    ) ;
-    if (dlistEmpty(&g_data.idleList)) {
-        printf("No idle connections\n") ;
-    } else {
-        printf("Yes, there are idle connections\n") ;
-    }
+    // printf("is there any connection in the idleLIst"
+    // ) ;
+    // if (dlistEmpty(&g_data.idleList)) {
+    //     printf("No idle connections\n") ;
+    // } else {
+    //     printf("Yes, there are idle connections\n") ;
+    // }
 
 
     while (!dlistEmpty(&g_data.idleList)) {
         Connection* conn = container_of(g_data.idleList.next, Connection, idleNode) ;
         uint64_t nextMS = conn -> lastActiveMS + kIdleTimeoutMS ;
 
-        printf("last active ms: %lld\n", conn -> lastActiveMS) ;
-        printf("timeout time: %lld\n", nextMS) ;
+        // printf("last active ms: %lld\n", conn -> lastActiveMS) ;
+        // printf("timeout time: %lld\n", nextMS) ;
 
         if (nextMS >= nowMS) {
             break ; 

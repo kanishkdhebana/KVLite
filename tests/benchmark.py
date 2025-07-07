@@ -1,17 +1,27 @@
 import time
 import random
 import string
-import subprocess
 import mysql.connector
 from pymongo import MongoClient
 import socket
 import struct
 import subprocess
+from dotenv import load_dotenv
+import os
 
-print("\nRunning custom key-value store benchmark...")
-subprocess.run(["./a.out"])
+# print("\nRunning custom key-value store benchmark...")
+# subprocess.run(["./a.out"])
 
-NUM_ITERATIONS = 1000
+
+load_dotenv()
+
+# Get database credentials from environment variables
+db_user = os.getenv('DB_USER')
+db_password = os.getenv('DB_PASSWORD')
+db_host = os.getenv('DB_HOST')
+db_database = os.getenv('DB_DATABASE')
+
+NUM_ITERATIONS = 10000
 TEST_KEYS = [f"key_{i}" for i in range(NUM_ITERATIONS)]
 TEST_VALUES = [''.join(random.choices(string.ascii_letters + string.digits, k=16)) for _ in range(NUM_ITERATIONS)]
 
@@ -55,41 +65,41 @@ def read_response(sock):
         raise ValueError(f"Invalid response length: {resp_len}")
     _ = recv_all(sock, resp_len)  # Ignore response content
 
-# def bench_custom_kv():
-#     print("\n--- Benchmarking custom key-value store (batched GETs) ---")
-#     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-#     sock.connect(SERVER_ADDR)
+def bench_custom_kv():
+    print("\n--- Benchmarking custom key-value store (SET/GET/DEL) ---")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.connect(SERVER_ADDR)
 
-#     commands = []
-#     for _ in range(500):
-#         commands.append(["get", "key0"])
-#     for _ in range(500):
-#         k = random.randint(0, 9999)
-#         commands.append(["get", f"key{k}"])
+    times = {'set': 0, 'get': 0, 'delete': 0}
+    # SET
+    for k, v in zip(TEST_KEYS, TEST_VALUES):
+        start = time.perf_counter()
+        send_request(sock, ["set", k, v])
+        read_response(sock)
+        times['set'] += time.perf_counter() - start
+    # GET
+    for k in TEST_KEYS:
+        start = time.perf_counter()
+        send_request(sock, ["get", k])
+        read_response(sock)
+        times['get'] += time.perf_counter() - start
+    # DEL
+    for k in TEST_KEYS:
+        start = time.perf_counter()
+        send_request(sock, ["del", k])
+        read_response(sock)
+        times['delete'] += time.perf_counter() - start
 
-#     start = time.perf_counter()
-
-#     for cmd in commands:
-#         send_request(sock, cmd)
-
-#     for _ in commands:
-#         read_response(sock)
-
-#     elapsed_ms = (time.perf_counter() - start) * 1000
-#     avg_get_time = elapsed_ms / len(commands)
-
-#     # Print consistent format
-#     print(f"Avg set time: N/A")
-#     print(f"Avg get time: {avg_get_time:.3f} ms")
-#     print(f"Avg delete time: N/A")
-
-#     sock.close()
+    print(f"Avg set time: {times['set']/NUM_ITERATIONS*1000:.3f} ms")
+    print(f"Avg get time: {times['get']/NUM_ITERATIONS*1000:.3f} ms")
+    print(f"Avg delete time: {times['delete']/NUM_ITERATIONS*1000:.3f} ms")
+    sock.close()
 
 
 
 def bench_mariadb():
     print("\n--- Benchmarking MariaDB ---")
-    conn = mysql.connector.connect(user='root', password='', database='test', host='127.0.0.1')
+    conn = mysql.connector.connect(user=db_user, password=db_password, database=db_database, host=db_host)
     cur = conn.cursor()
     cur.execute("CREATE TABLE IF NOT EXISTS kv (k VARCHAR(255) PRIMARY KEY, v TEXT)")
 
@@ -143,3 +153,4 @@ def bench_mongodb():
 if __name__ == "__main__":
     bench_mariadb()
     bench_mongodb()
+    bench_custom_kv()

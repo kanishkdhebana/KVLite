@@ -25,7 +25,6 @@ static void doGet(
     std::vector<std::string>& cmd, 
     Buffer& out
 ) {
-
     LookupKey key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
@@ -133,11 +132,13 @@ void entrySetTTL(Entry* entry, int64_t ttlMS) {
         HeapItem item = {expireAt, &entry -> heapIdx} ;
         heapInsert(g_data.heap, entry -> heapIdx, item) ;
     }
+
+    
 }
 
 static void doExpire(
-    Buffer& out,
-    std::vector<std::string>& cmd
+    std::vector<std::string>& cmd,
+    Buffer& out
 ) {
     int64_t ttlMS = 0 ;
     
@@ -178,6 +179,10 @@ void doRequest(
 
     else if (cmd.size() == 1 && cmd[0] == "keys") {
         return doKeys(out) ;
+    }
+
+    else if (cmd.size() == 3 && cmd[0] == "expire") {
+        return doExpire(cmd, out) ;
     }
 
     else {

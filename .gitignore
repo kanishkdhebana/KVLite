@@ -6,3 +6,4 @@ server
 *.o
 client
 server.log
+.env
