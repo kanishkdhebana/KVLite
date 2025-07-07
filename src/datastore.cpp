@@ -160,6 +160,32 @@ static void doExpire(
 }
 
 
+static void doTTL(
+    std::vector<std::string>& cmd,
+    Buffer& out
+) {
+    LookupKey key ;
+    key.key.swap(cmd[1]) ;
+    key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
+    HNode* node = hmLookup(&g_data.db, &key.node, &entryEq) ;
+
+    if (!node) {
+        return outInt(out, -2) ; // no key
+    }
+
+    Entry* entry = container_of(node, Entry, node) ;
+    if (entry -> heapIdx == (size_t)-1) {
+        return outInt(out, -1) ; // no ttl
+    }
+
+    uint64_t expireAt = g_data.heap[entry -> heapIdx].val ;
+    uint64_t nowMS = getMonoticMS() ;
+
+
+    return outInt(out, expireAt > nowMS ? (expireAt - nowMS) : 0) ;
+}
+
+
 void doRequest(
     std::vector<std::string>& cmd, 
     Buffer& out
@@ -183,6 +209,10 @@ void doRequest(
 
     else if (cmd.size() == 3 && cmd[0] == "expire") {
         return doExpire(cmd, out) ;
+    }
+
+    else if (cmd.size() == 2 && cmd[0] == "pttl") {
+        return doTTL(cmd, out) ;
     }
 
     else {
