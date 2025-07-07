@@ -186,6 +186,162 @@ static void doTTL(
 }
 
 
+static void doZAdd(
+    std::vector<std::string>& cmd,
+    Buffer& out
+) {
+    int64_t score = 0 ;
+    
+    if (!str2Int(cmd[2], score)) {
+        return outError(out, ERR_BAD_ARG, "expect int64") ;
+    }
+
+
+    LookupKey key ;
+    key.key.swap(cmd[1]) ;
+    key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
+    HNode* hnode = hmLookup(&g_data.db, &key.node, &entryEq) ;
+
+    Entry* entry = NULL ;
+
+    if (!hnode) {
+        entry = entryNew(T_ZSET) ;
+        entry -> key.swap(key.key) ;
+        entry -> node.hash = key.node.hash ;
+
+        entry -> zset = ZSet();
+
+        hmInsert(&g_data.db, &entry -> node) ;
+    }
+
+    else {
+        entry = container_of(hnode, Entry, node) ;
+
+        if (entry -> type != T_ZSET) {
+            return outError(out, ERR_BAD_TYP, "expect zset") ;
+        }
+    }
+
+    const std::string& name = cmd[3] ;
+
+    printf("Inserting into ZSet: %s, score: %lld\n", name.c_str(), score) ;
+
+    bool added = zsetInsert(&entry -> zset, name.data(), name.size(), score) ;
+
+    return outInt(out, (int64_t)added) ;
+}
+
+static const ZSet kEmptyZSet;
+
+static ZSet* expectZset(std::string& s) {
+    LookupKey key ;
+    key.key.swap(s) ;
+    key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
+    HNode* hnode = hmLookup(&g_data.db, &key.node, &entryEq) ;
+
+    if (!hnode) {
+        return (ZSet*)&kEmptyZSet ;
+    }
+
+    Entry* entry = container_of(hnode, Entry, node) ;
+    
+    return entry -> type == T_ZSET ? &entry -> zset : NULL ;
+}
+
+
+static void doZRemove(
+    std::vector<std::string>& cmd,
+    Buffer& out
+) {
+    ZSet* zset = expectZset(cmd[1]) ;
+
+    if (!zset) {
+        return outError(out, ERR_BAD_TYP, "expect zset") ;
+    }
+
+    const std::string& name = cmd[2] ;
+    ZNode* znode = zsetLookup(zset, name.data(), name.size()) ;
+
+    if (znode) {
+        zsetDelete(zset, znode) ;
+    }
+
+    return outInt(out, znode ? 1 : 0) ;
+}
+
+static void doZScore(
+    std::vector<std::string>& cmd,
+    Buffer& out
+) {
+    ZSet* zset = expectZset(cmd[1]) ;
+    
+
+    if (!zset) {
+        return outError(out, ERR_BAD_TYP, "expect zset") ;
+    }
+
+    const std::string& name = cmd[2] ;
+    printf("Looking up score for: %s\n", cmd[2].c_str());
+
+    ZNode* znode = zsetLookup(zset, name.data(), name.size()) ;
+
+    if (!znode) {
+        printf("znode is NULL") ;
+    }
+
+    else {
+        printf("znode: %f\n", znode -> score) ;
+    }
+
+    return znode ? outDouble(out, znode -> score) : outNil(out) ;
+}
+
+
+static void doZQuery(
+    std::vector<std::string>& cmd,
+    Buffer& out
+) {
+    double score = 0 ;
+
+    if (!str2Double(cmd[2], score)) {
+        return outError(out, ERR_BAD_ARG, "expect floating-point number") ;
+    }
+
+    const std::string& name = cmd[3] ;
+    int64_t offset = 0 ;
+    int64_t limit = 0 ;
+
+    if (!str2Int(cmd[4], offset) || !str2Int(cmd[5], limit)) {
+        return outError(out, ERR_BAD_ARG, "expect int") ;
+    }
+
+    ZSet* zset = expectZset(cmd[1]) ;
+
+    if (!zset) {
+        return outError(out, ERR_BAD_TYP, "expect zset") ;
+    }
+
+    if (limit <= 0) {
+        return outArray(out, 0) ;
+    }
+
+    ZNode* znode = zsetSeekage(zset, score, name.data(), name.size()) ;
+    znode = znodeOffset(znode, offset) ;
+
+    size_t ctx = outBeginArray(out) ;
+    int64_t n = 0 ;
+
+    while (znode && n < limit) {
+        outString(out, znode -> name, znode -> len) ;
+        outDouble(out, znode -> score) ;
+        znode = znodeOffset(znode, +1) ;
+        n += 2 ;
+    }
+
+    outEndArray(out, ctx, (uint32_t)n) ; 
+}
+
+
 void doRequest(
     std::vector<std::string>& cmd, 
     Buffer& out
@@ -213,6 +369,22 @@ void doRequest(
 
     else if (cmd.size() == 2 && cmd[0] == "pttl") {
         return doTTL(cmd, out) ;
+    }
+
+    else if (cmd.size() == 4 && cmd[0] == "zadd") {
+        return doZAdd(cmd, out) ;
+    }
+
+    else if (cmd.size() == 3 && cmd[0] == "zrem") {
+        return doZRemove(cmd, out) ;
+    }
+
+    else if (cmd.size() == 3 && cmd[0] == "zscore") {
+        return doZScore(cmd, out) ;
+    }
+
+    else if (cmd.size() == 6 && cmd[0] == "zquery") {
+        return doZQuery(cmd, out) ;
     }
 
     else {

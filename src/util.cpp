@@ -8,6 +8,8 @@
 #include <math.h>
 #include <cstring>
 #include <fcntl.h>
+#include <cassert>
+#include <iostream>
 
 
 uint64_t strHash(
@@ -52,10 +54,18 @@ void fdSetNonBlocking(int fd) {
 
 
 void outError(Buffer& out, uint32_t code, const std::string& msg) {
-    return ;
+    uint8_t tag = TAG_ERROR ;
+    out.append(&tag, 1) ;
+    uint32_t netCode = htonl(code) ;
+    out.append((uint8_t*)&netCode, sizeof(netCode)) ;
+    uint32_t msgSize = htonl((uint32_t)msg.size()) ;
+    out.append((uint8_t*)&msgSize, sizeof(msgSize)) ;
+    out.append((uint8_t*)msg.data(), msg.size()) ;
 }
 
 void outNil(Buffer& out) {
+
+    printf("\noutNIl\n") ;
     uint8_t tag = TAG_NIL ;
     out.append(&tag, 1) ;
 
@@ -89,8 +99,14 @@ void outInt(Buffer& out, uint64_t val) {
     out.status = ResponseStatus::RES_OK ;
 }
 
-void outDouble(Buffer& out, double score) {
+void outDouble(Buffer& out, double val) {
+    std::cout << "outDouble" << std::endl ;
 
+
+    uint8_t tag = TAG_DOUBLE ;
+    out.append(&tag, 1) ;
+    uint64_t netValue = htonll((uint64_t)val) ;
+    out.append((uint8_t*)&netValue, sizeof(netValue)) ;
 }
 
 
@@ -102,6 +118,25 @@ void outArray(Buffer& out, uint32_t n) {
     out.append((uint8_t*)&netN, sizeof(netN)) ;
 
     out.status = ResponseStatus::RES_OK ;
+}
+
+
+size_t outBeginArray(Buffer& out) {
+    uint8_t tag = TAG_ARRAY ;
+    out.append(&tag, 1) ;
+
+    size_t ctx = out.size() ;
+    uint32_t n = 0 ;
+    out.append((uint8_t*)&n, sizeof(n)) ; 
+
+    return ctx - 4 ;
+}
+
+
+void outEndArray(Buffer& out, size_t ctx, uint32_t n) {
+    assert(out.dataStart[ctx - 1] == TAG_ARRAY) ;
+    uint32_t netN = htonl(n) ;
+    out.append((uint8_t*)&netN, sizeof(netN)) ;
 }
 
 

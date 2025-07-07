@@ -14,25 +14,6 @@
 static const ZSet k_empty_zset;
 
 
-
-static size_t outBeginArray(Buffer& out) {
-    uint8_t tag = TAG_ARRAY ;
-    out.append(&tag, 1) ;
-
-    size_t ctx = out.size() ;
-    uint32_t n = 0 ;
-    out.append((uint8_t*)&n, sizeof(n)) ; 
-
-    return ctx - 4 ;
-}
-
-
-static void outEndArray(Buffer& out, size_t ctx, uint32_t n) {
-    // assert(out[ctx - 1] == TAG_ARR);
-    // memcpy(&out[ctx], &n, 4);
-    out.append((uint8_t*)&n, sizeof(n)) ; // append size of array
-}
-
 static ZNode* znodeNew(
     const char* name, 
     size_t len, 
@@ -79,10 +60,10 @@ ZNode* zsetLookup(
     }
 
     HKey key ;
-    key.node -> hash = strHash((uint8_t*)name, len) ;
+    key.node.hash = strHash((uint8_t*)name, len) ;
     key.name = name ;
     key.len = len ;
-    HNode* found = hmLookup(&zset -> hmap, key.node, &hcmp) ;
+    HNode* found = hmLookup(&zset -> hmap, &key.node, &hcmp) ;
 
     return found? container_of(found, ZNode, hmap) : NULL ;
 }
@@ -158,12 +139,16 @@ bool zsetInsert(
     if (node) {
         zsetUpdate(zset, node, score) ;
         return false ;
+
+        printf("%d\n", zset -> root -> cnt) ;
     }
 
     else {
         ZNode* node = znodeNew(name, len, score) ;
         hmInsert(&zset -> hmap, &node -> hmap) ;
         treeInsert(zset, node) ;
+
+        printf("%d\n", zset -> root -> cnt) ;
 
         return true ;
     }
@@ -174,11 +159,11 @@ void zsetDelete(
     ZNode* node
 ) {
     HKey key ;
-    key.node -> hash = node -> hmap.hash ;
+    key.node.hash = node -> hmap.hash ;
     key.name = node -> name ;
     key.len = node -> len ;
     
-    HNode* found = hmDelete(&zset -> hmap, key.node, &hcmp) ;
+    HNode* found = hmDelete(&zset -> hmap, &key.node, &hcmp) ;
     assert(found) ;
 
     zset -> root = avlDelete(&node -> tree) ;
@@ -241,8 +226,6 @@ static AVLNode* successor(AVLNode* node) {
     return NULL ;
 }
 
-
-
 static AVLNode* predecessor(AVLNode* node) {
     if (node -> left) {
         for (node = node -> left; node -> right; node = node -> right) {}
@@ -267,65 +250,4 @@ ZNode* znodeOffset(
 ) {
     AVLNode* tnode = node? avlOffset(&node -> tree, offset) : NULL ;
     return tnode? container_of(tnode, ZNode, tree) : NULL ;
-}
-
-
-
-static ZSet *expectZset(std::string &s) {
-    LookupKey key ;
-    key.key.swap(s) ;
-    key.node.hash = strHash((uint8_t *)key.key.data(), key.key.size()) ;
-    HNode *hnode = hmLookup(&g_data.db, &key.node, &entryEq) ;
-
-    if (!hnode) {  
-        return (ZSet *)&k_empty_zset ;
-    }
-
-    Entry *ent = container_of(hnode, Entry, node) ;
-    return ent -> type == T_ZSET ? &ent -> zset : NULL ;
-}
-
-static void doZQuery(
-    std::vector<std::string>& cmd, 
-    Buffer& out
-) {
-
-    double score = 0 ;
-
-    if (!str2Double(cmd[2], score)) {
-        return outError(out, ERR_BAD_ARG, "expect float") ;
-    }
-
-    const std::string &name = cmd[3] ;
-    int64_t offset = 0 ;
-    int64_t limit = 0 ;
-
-    if (!str2Int(cmd[4], offset) || str2Int(cmd[5], limit)) {
-        return outError(out, ERR_BAD_ARG, "expect int") ;
-    }
-
-    ZSet* zset = expectZset(cmd[1]) ;
-
-    if (!zset) {
-        return outError(out, ERR_BAD_TYP, "expect zset");
-    }
-
-    if (limit <= 0) {
-        return outArray(out, 0) ;
-    }
-
-    ZNode* znode = zsetSeekage(zset, score, name.data(), name.size()) ;
-    znode = znodeOffset(znode, offset) ;
-
-    size_t ctx = outBeginArray(out) ;
-    int64_t n = 0 ;
-
-    while (znode && n < limit) {
-        outString(out, znode -> name, znode -> len) ;
-        outDouble(out, znode -> score) ;
-        znode = znodeOffset(znode, +1) ;
-        n += 2 ;
-    }
-
-    outEndArray(out, ctx, ((uint32_t)n));
 }
