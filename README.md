@@ -119,12 +119,13 @@ Interact with the server from another terminal.
 ```
 
 #### Set ttl for a key
+In this command 10000 means 10000 milliseconds -> 10 seconds. Output server response is not yet implemented.
+
 ```bash
 ./client exprie a 10000
 # Output:
 # // not yet implemented
 ```
-In this command 10000 means 10000 milliseconds -> 10 seconds. Output server response is not yet implemented.
 ---
 
 ## Network Protocol
