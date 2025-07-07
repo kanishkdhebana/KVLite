@@ -1,6 +1,6 @@
 # KV-Lite: In-Memory Key-Value Store
 
-KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in modern C++. It supports basic Redis-like commands (`SET`, `GET`, `DEL`, `KEYS`, `EXPIRE`) over a custom binary protocol, built to deepen understanding of low-level network programming, memory management, and data structures.
+KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store written in modern C++. It supports basic Redis-like commands (`SET`, `GET`, `DEL`, `KEYS`, `EXPIRE`, `PTTL`) over a custom binary protocol, built to deepen understanding of low-level network programming, memory management, and data structures.
 
 ---
 
@@ -15,7 +15,7 @@ KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store w
 
 ## Current Features
 
-- **SET**, **GET**, **DEL**, **KEYS**, **EXPIRE** commands.
+- **SET**, **GET**, **DEL**, **KEYS**, **EXPIRE**, **PTTL** commands.
 - Handles multiple client connections via a single-threaded loop.
 - All data is stored in-memory (volatile).
 - Well-documented request/response protocol.
@@ -123,6 +123,14 @@ In this command 10000 means 10000 milliseconds -> 10 seconds. Output server resp
 
 ```bash
 ./client exprie a 10000
+# Output:
+# // not yet implemented
+```
+
+#### Find ttl of a key
+
+```bash
+./client pttl a
 # Output:
 # // not yet implemented
 ```
