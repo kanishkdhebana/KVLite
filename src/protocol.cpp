@@ -90,24 +90,11 @@ static int32_t parseRequest(
 }
 
 
-// void makeResponse(
-//     Buffer* writeBuffer, 
-//     const Response& response
-// ) {
-//     uint32_t responseBodyLength = 4 + response.data.size() ;
-//     uint32_t netResponseLength = htonl(responseBodyLength) ;
-//     uint32_t netStatus = htonl(response.status) ;
-
-    
-//     writeBuffer -> append((const uint8_t*)&netResponseLength, 4) ;
-//     writeBuffer -> append((const uint8_t*)&netStatus, 4) ;
-//     writeBuffer -> append(response.data.data(), response.data.size()) ;
-// }
-
 static void responseBegin(Buffer& out, size_t* header) {
     *header = out.size() ;
     out.append((const uint8_t*)"\x00\x00\x00\x00", 4) ; // placeholder for length
 }
+
 
 static size_t responseSize(Buffer& out, size_t header) {
     return out.size() - header - 4 ;
@@ -140,17 +127,17 @@ bool tryOneRequest(Connection* conn) {
         return false ;
     }
 
-    int32_t requestLength = 0 ;
-    memcpy(&requestLength, conn -> readBuffer -> dataStart, 4) ; 
-    requestLength = ntohl(requestLength) ;
+    int32_t requestPayloadLength = 0 ;
+    memcpy(&requestPayloadLength, conn -> readBuffer -> dataStart, 4) ; 
+    requestPayloadLength = ntohl(requestPayloadLength) ;
     
-    if (requestLength < 0 || (size_t)requestLength > kMaxMessage) {
-        fprintf(stderr, "Invalid message length: %d\n", requestLength) ;
+    if (requestPayloadLength < 0 || (size_t)requestPayloadLength > kMaxMessage) {
+        fprintf(stderr, "Invalid message length: %d\n", requestPayloadLength) ;
         conn -> wantToClose = true ;
         return false ;
     }
 
-    if (conn -> readBuffer -> size() < (size_t)(4 + requestLength)) {
+    if (conn -> readBuffer -> size() < (size_t)(4 + requestPayloadLength)) {
         return false ; 
     }
 
@@ -158,7 +145,7 @@ bool tryOneRequest(Connection* conn) {
 
     std::vector<std::string> cmd ;
 
-    if (parseRequest(request, requestLength, cmd) < 0) {
+    if (parseRequest(request, requestPayloadLength, cmd) < 0) {
         fprintf(stderr, "Invalid request\n") ;
         conn -> wantToClose = true ;
         return false ;
@@ -169,22 +156,13 @@ bool tryOneRequest(Connection* conn) {
     //     printf("%s%s", cmd[i].c_str(), i + 1 == cmd.size() ? "\n" : " ");
     // }
 
-
     size_t headerPos = 0 ;
 
-    responseBegin(*conn -> writeBuffer, &headerPos) ;
+    responseBegin(*conn -> writeBuffer, &headerPos) ; // reserve 4 bytes
     doRequest(cmd, *conn -> writeBuffer) ;
     responseEnd(*conn -> writeBuffer, &headerPos) ;
-
-   
-
-    // conn -> writeBuffer -> append((const uint8_t*)& requestLength, 4) ;
-    // conn -> writeBuffer -> append(request, requestLength) ;
     
-    conn -> readBuffer -> consume(4 + requestLength) ;
-
-
-
+    conn -> readBuffer -> consume(4 + requestPayloadLength) ;
 
     return true ;
 }

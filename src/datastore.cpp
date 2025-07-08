@@ -7,7 +7,11 @@
 
 GData g_data ;
 
-bool entryEq(const HNode *node, const HNode *key) {
+bool entryEq(
+    const HNode *node, 
+    const HNode *key
+) {
+
     struct Entry* ent = container_of(node, Entry, node) ;
     struct LookupKey* keydata = container_of(key, LookupKey, node) ;
     return ent -> key == keydata -> key ;
@@ -25,6 +29,7 @@ static void doGet(
     std::vector<std::string>& cmd, 
     Buffer& out
 ) {
+
     LookupKey key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
@@ -90,7 +95,7 @@ static void doDelete(
     std::vector<std::string>& cmd, 
     Buffer& out
 ) {
-    Entry key ;
+    LookupKey key ;
     key.key.swap(cmd[1]) ;
     key.node.hash = strHash((uint8_t*)key.key.data(), key.key.size()) ;
 
@@ -105,7 +110,10 @@ static void doDelete(
     return (outInt(out, flag)) ;
 }
 
-static bool cbKeys(HNode* node, void* arg) {
+static bool cbKeys(
+    HNode* node, 
+    void* arg
+) {
     Buffer& out = *(Buffer*)arg ;
     const std::string& key = container_of(node, Entry, node) -> key ;
     outString(out, key.data(), key.size()) ;
@@ -117,11 +125,16 @@ static bool cbKeys(HNode* node, void* arg) {
 static void doKeys(
     Buffer& out
 ) {
+
     outArray(out, (uint32_t)hmSize(&g_data.db)) ;
     hmForEach(&g_data.db, &cbKeys, (void*)& out) ;
 }
 
-void entrySetTTL(Entry* entry, int64_t ttlMS) {
+
+void entrySetTTL(
+    Entry* entry, 
+    int64_t ttlMS
+) {
     if (ttlMS < 0 && entry -> heapIdx != (size_t)-1) {
         heapDelete(g_data.heap, entry -> heapIdx) ;
         entry -> heapIdx = -1 ;
@@ -230,6 +243,7 @@ static void doZAdd(
 
     return outInt(out, (int64_t)added) ;
 }
+
 
 static const ZSet kEmptyZSet;
 

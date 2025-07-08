@@ -4,7 +4,7 @@
 #include "hashtable.h"
 
 
-static void hInit(
+static void htInit(
     HTable* hTable, 
     size_t size
 ) {
@@ -20,7 +20,7 @@ static void hInit(
 }
 
 
-static void hInsert(
+static void htInsert(
     HTable* hTable, 
     HNode* node
 ) {
@@ -31,12 +31,30 @@ static void hInsert(
 }
 
 
-static HNode** hLookup(
+static HNode* htDetach(
+    HTable* hTable,
+    HNode** from 
+) {
+    HNode* node = *from ;
+
+    if (node == NULL) {
+    fprintf(stderr, "htDetach error: tried to detach NULL node! from = %p\n", (void*)from);
+    abort();
+}
+
+    *from = node -> next ;
+    hTable -> size-- ;
+    
+    return node ;
+}
+
+
+static HNode** htLookup(
     HTable* hTable, 
     HNode* key, 
     bool (*equal)(const HNode*, const HNode*)
 ) {
-    if (!hTable || !hTable->table) {
+    if (!hTable || !hTable -> table) {
         return NULL ;
     }
 
@@ -53,27 +71,9 @@ static HNode** hLookup(
 }
 
 
-static HNode* hDetach(
-    HTable* hTable,
-    HNode** from 
-) {
-    HNode* node = *from ;
-
-    if (node == NULL) {
-    fprintf(stderr, "hDetach error: tried to detach NULL node! from=%p\n", (void*)from);
-    abort();
-}
-
-    *from = node -> next ;
-    hTable -> size-- ;
-    
-    return node ;
-}
-
-
 void hmTriggerRehashing(HMap* hmap) {
     hmap -> older = hmap -> newer ;
-    hInit(&hmap -> newer, (hmap -> newer.mask + 1) * 2) ;
+    htInit(&hmap -> newer, (hmap -> newer.mask + 1) * 2) ;
     hmap -> migratePosition = 0 ;
 }
 
@@ -84,12 +84,13 @@ void hmHelpRehashing(HMap* hmap) {
     while (nWork < k_rehashing_work && hmap -> older.size > 0) {
         HNode** from = &hmap -> older.table[hmap -> migratePosition] ;
 
+        // if *from is a nullptr, skip this position
         if (!*from) {
             hmap -> migratePosition++ ;
             continue ;
         }
 
-        hInsert(&hmap -> newer, hDetach(&hmap -> older, from)) ;
+        htInsert(&hmap -> newer, htDetach(&hmap -> older, from)) ;
         nWork++ ;
     }
 
@@ -107,10 +108,10 @@ HNode* hmLookup(
 ) {
     hmHelpRehashing(hmap) ;
 
-    HNode** from = hLookup(&hmap -> newer, key, equal) ;
+    HNode** from = htLookup(&hmap -> newer, key, equal) ;
 
     if (!from) {
-        from = hLookup(&hmap -> older, key, equal) ;
+        from = htLookup(&hmap -> older, key, equal) ;
     }
 
     return from? *from : NULL ;
@@ -122,10 +123,10 @@ void hmInsert(
     HNode* node
 ) {
     if (!hmap -> newer.table) {
-        hInit(&hmap -> newer, 4) ;
+        htInit(&hmap -> newer, 4) ;
     }
 
-    hInsert(&hmap -> newer, node) ;
+    htInsert(&hmap -> newer, node) ;
 
     if (!hmap -> older.table) {
         size_t threshold = (hmap -> newer.mask + 1) * k_max_load_factor ;
@@ -146,12 +147,12 @@ HNode* hmDelete(
 ) {
     hmHelpRehashing(hmap) ;
 
-    if (HNode** from = hLookup(&hmap -> newer, key, equal)) {
-        return hDetach(&hmap -> newer, from) ;
+    if (HNode** from = htLookup(&hmap -> newer, key, equal)) {
+        return htDetach(&hmap -> newer, from) ;
     }
 
-    if (HNode** from = hLookup(&hmap -> older, key, equal)) {
-        return hDetach(&hmap -> older, from) ;
+    if (HNode** from = htLookup(&hmap -> older, key, equal)) {
+        return htDetach(&hmap -> older, from) ;
     }
 
     return NULL ;
@@ -169,7 +170,7 @@ size_t hmSize(HMap* hmap) {
     return hmap -> newer.size + hmap -> older.size ;
 }
 
-static bool hForEach(HTable* htable, bool (*f)(HNode*, void*), void* arg) {
+static bool htForEach(HTable* htable, bool (*f)(HNode*, void*), void* arg) {
     for (size_t i = 0; htable -> mask != 0 && i <= htable -> mask; i++) {
         for (HNode* node = htable -> table[i]; node != NULL; node = node -> next) {
             if (!f(node, arg)) {
@@ -183,5 +184,5 @@ static bool hForEach(HTable* htable, bool (*f)(HNode*, void*), void* arg) {
 
 
 void hmForEach(HMap* hmap, bool (*f)(HNode*, void*), void* arg) {
-    hForEach(&hmap -> newer, f, arg) && hForEach(&hmap -> older, f, arg) ;
+    htForEach(&hmap -> newer, f, arg) && htForEach(&hmap -> older, f, arg) ;
 }

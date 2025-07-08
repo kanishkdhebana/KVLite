@@ -69,7 +69,7 @@ void outNil(Buffer& out) {
     uint8_t tag = TAG_NIL ;
     out.append(&tag, 1) ;
 
-    out.status = RES_NX ;
+    out.status = RES_OK ;
 }
 
 
