@@ -23,8 +23,6 @@ bool entryEq(
 // }
 
 
-
-
 static void doGet(
     std::vector<std::string>& cmd, 
     Buffer& out
@@ -135,6 +133,7 @@ void entrySetTTL(
     Entry* entry, 
     int64_t ttlMS
 ) {
+    
     if (ttlMS < 0 && entry -> heapIdx != (size_t)-1) {
         heapDelete(g_data.heap, entry -> heapIdx) ;
         entry -> heapIdx = -1 ;
@@ -144,9 +143,7 @@ void entrySetTTL(
         uint64_t expireAt = getMonoticMS() + (uint64_t)ttlMS ;
         HeapItem item = {expireAt, &entry -> heapIdx} ;
         heapInsert(g_data.heap, entry -> heapIdx, item) ;
-    }
-
-    
+    }   
 }
 
 static void doExpire(

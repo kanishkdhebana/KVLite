@@ -62,9 +62,11 @@ int main() {
     while (true) {
         pollFds.clear() ;
 
+        // add server to the poll list
         struct pollfd pfd = {serverFd, POLLIN, 0} ;
         pollFds.push_back(pfd) ;
 
+        // add connected clients to the poll list
         for (Connection* conn: g_data.fd2conn) {
             if (!conn) {
                 continue ;
@@ -86,7 +88,7 @@ int main() {
         int32_t timeoutMS = nextTimerMS() ;
         int pollResult = poll(pollFds.data(), pollFds.size(), timeoutMS) ;
 
-        if (pollResult < 0 && errno == EINTR) {
+        if (pollResult < 0 && errno == EINTR) { // try again next time
             continue ;
         }
 
@@ -94,10 +96,12 @@ int main() {
             die("poll") ;
         }
 
+        // handle server
         if (pollFds[0].revents) {       // pollFds[0] is the server, so just checking for new connection requests.
             handleAccept(serverFd) ;
         }
 
+        // handle clients
         for (size_t i = 1; i < pollFds.size(); i++) { // skip the server socket
             struct pollfd pfd = pollFds[i] ;
             uint32_t ready = pfd.revents ;

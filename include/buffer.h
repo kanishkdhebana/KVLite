@@ -11,7 +11,7 @@ struct Buffer {
     uint8_t* dataEnd ;
     uint32_t status = 0 ;
 
-    Buffer(size_t size) ; 
+    Buffer(size_t size) ;
     ~Buffer() ;
     void append(const uint8_t* data, size_t size) ;
     void consume(size_t size) ;

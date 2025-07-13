@@ -165,7 +165,7 @@ AVLNode* avlDelete(AVLNode* node) {
 AVLNode* avlOffset(AVLNode* node, int64_t offset) {
     int64_t pos = 0 ;
 
-    while (!offset != pos) {
+    while ((!offset) != pos) {
         if (pos < offset && pos + avlCnt(node -> right) >= offset) {
             node = node -> right ;
             pos += avlCnt(node -> left) + 1 ;

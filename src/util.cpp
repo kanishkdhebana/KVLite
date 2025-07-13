@@ -33,10 +33,15 @@ void die(const char* message) {
 
 
 void fdSetNonBlocking(int fd) {
-    errno = 0 ;
+    // errno = 0 ;
     int flags = fcntl(fd, F_GETFL, 0) ;
 
-    if (errno) {
+    // if (errno) {
+    //     die("fcntl(F_GETFL)") ;
+    //     return ;
+    // }
+
+    if (flags == -1) {
         die("fcntl(F_GETFL)") ;
         return ;
     }
@@ -61,6 +66,8 @@ void outError(Buffer& out, uint32_t code, const std::string& msg) {
     uint32_t msgSize = htonl((uint32_t)msg.size()) ;
     out.append((uint8_t*)&msgSize, sizeof(msgSize)) ;
     out.append((uint8_t*)msg.data(), msg.size()) ;
+
+    out.status = RES_ERR ;
 }
 
 void outNil(Buffer& out) {
@@ -107,6 +114,8 @@ void outDouble(Buffer& out, double val) {
     out.append(&tag, 1) ;
     uint64_t netValue = htonll((uint64_t)val) ;
     out.append((uint8_t*)&netValue, sizeof(netValue)) ;
+
+    out.status = ResponseStatus::RES_OK ;
 }
 
 

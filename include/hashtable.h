@@ -5,9 +5,11 @@
 #include <stdint.h>
 
 
-const size_t k_max_load_factor = 8 ;
+const size_t k_max_load_factor = 1 ;
 const size_t k_rehashing_work = 128 ; 
 
+
+// yo bro
 struct HNode {
     HNode* next = NULL ;
     uint64_t hash = 0 ;
