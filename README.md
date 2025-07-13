@@ -42,19 +42,19 @@ g++ -o client client.cpp
 ```bash
 
 --- Benchmarking MariaDB ---
-Avg set time: 0.144 ms
-Avg get time: 0.055 ms
-Avg delete time: 0.143 ms
+Avg set time: 0.137 ms
+Avg get time: 0.053 ms
+Avg delete time: 0.138 ms
 
 --- Benchmarking MongoDB ---
-Avg set time: 0.090 ms
+Avg set time: 0.092 ms
 Avg get time: 0.085 ms
-Avg delete time: 0.080 ms
+Avg delete time: 0.081 ms
 
 --- Benchmarking custom key-value store (SET/GET/DEL) ---
-Avg set time: 0.044 ms
-Avg get time: 0.055 ms
-Avg delete time: 0.045 ms
+Avg set time: 0.046 ms
+Avg get time: 0.057 ms
+Avg delete time: 0.043 ms
 ```
 
 ---
