@@ -41,22 +41,22 @@ KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store w
 }%%
 graph TD
     %% Node Definitions (with trailing spaces for padding)
-    Client([Client CLI/Script ]) -- TCP (Binary Protocol) --> ServerSocket["Server Socket (non-blocking, Port 1234) "]
+    Client([Client CLI/Script ]) -- TCP (Binary Protocol) &nbsp; --> ServerSocket["Server Socket (non-blocking, Port 1234) "]
     ServerSocket --> PollLoop["poll() Event Loop &nbsp;"]
     PollLoop --> ConnHandler["Connection Handler &nbsp;"]
     ConnHandler --> ProtocolParser["Binary Protocol Parser &nbsp;"]
     ProtocolParser --> CommandDispatcher["Command Dispatcher &nbsp;"]
 
     %% Data Structure Links
-    CommandDispatcher -- SET/GET/DEL/KEYS --> HashTable["Hash Table (HMap/HTable) &nbsp;"]
-    CommandDispatcher -- EXPIRE/PTTL --> Heap["Heap (TTL/Expiration) &nbsp;"]
-    CommandDispatcher -- ZADD/ZRANGE --> ZSet["ZSet (AVL Tree + Hash Table) &nbsp;"]
+    CommandDispatcher -- SET/GET/DEL/KEYS &nbsp; --> HashTable["Hash Table (HMap/HTable) &nbsp;"]
+    CommandDispatcher -- EXPIRE/PTTL &nbsp; --> Heap["Heap (TTL/Expiration) &nbsp;"]
+    CommandDispatcher -- ZADD/ZRANGE &nbsp; --> ZSet["ZSet (AVL Tree + Hash Table) &nbsp;"]
 
     HashTable --> Entry["(Key/Value Entry) &nbsp;"]
     ZSet --> Entry
 
     %% Optional Component
-    CommandDispatcher -- Background Tasks --> ThreadPool["Thread Pool &nbsp;"]
+    CommandDispatcher -- Background Tasks &nbsp; --> ThreadPool["Thread Pool &nbsp;"]
 
     %% Styling with Classes
     classDef io fill:#7aa2f7,stroke:#293b58,stroke-width:2px,color:#0e0e11
