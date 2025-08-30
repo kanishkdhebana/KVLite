@@ -22,6 +22,60 @@ KV-Lite is a lightweight, single-threaded, TCP-based in-memory key-value store w
 
 ---
 
+## Architecture
+
+```mermaid
+%%{
+  init: {
+    'theme': 'base',
+    'themeVariables': {
+      'background': '#1a1b26',
+      'primaryColor': '#1a1b26',
+      'primaryTextColor': '#a9b1d6',
+      'primaryBorderColor': '#414868',
+      'lineColor': '#414868',
+      'fontFamily': 'sans-serif',
+      'fontSize': '16px'
+    }
+  }
+}%%
+graph TD
+    %% Node Definitions (with trailing spaces for padding)
+    Client([Client CLI/Script ]) -- TCP (Binary Protocol) --> ServerSocket["Server Socket (non-blocking, Port 1234) "]
+    ServerSocket --> PollLoop["poll() Event Loop &nbsp;"]
+    PollLoop --> ConnHandler["Connection Handler &nbsp;"]
+    ConnHandler --> ProtocolParser["Binary Protocol Parser &nbsp;"]
+    ProtocolParser --> CommandDispatcher["Command Dispatcher &nbsp;"]
+
+    %% Data Structure Links
+    CommandDispatcher -- SET/GET/DEL/KEYS --> HashTable["Hash Table (HMap/HTable) &nbsp;"]
+    CommandDispatcher -- EXPIRE/PTTL --> Heap["Heap (TTL/Expiration) &nbsp;"]
+    CommandDispatcher -- ZADD/ZRANGE --> ZSet["ZSet (AVL Tree + Hash Table) &nbsp;"]
+
+    HashTable --> Entry["(Key/Value Entry) &nbsp;"]
+    ZSet --> Entry
+
+    %% Optional Component
+    CommandDispatcher -- Background Tasks --> ThreadPool["Thread Pool &nbsp;"]
+
+    %% Styling with Classes
+    classDef io fill:#7aa2f7,stroke:#293b58,stroke-width:2px,color:#0e0e11
+    classDef processing fill:#e0af68,stroke:#5e482b,stroke-width:2px,color:#0e0e11
+    classDef datastore fill:#73daca,stroke:#315c55,stroke-width:2px,color:#0e0e11
+    classDef optional fill:#bb9af7,stroke:#4b3d63,stroke-width:2px,color:#0e0e11
+    classDef entry fill:#f7768e,stroke:#66323b,stroke-width:2px,color:#0e0e11
+
+    %% Apply Classes to Nodes
+    class Client,ServerSocket,PollLoop io
+    class ConnHandler,ProtocolParser,CommandDispatcher processing
+    class HashTable,Heap,ZSet datastore
+    class ThreadPool optional
+    class Entry entry
+```
+
+
+---
+
 ## Build
 
 The project has no external dependencies and can be compiled with a standard C++ compiler like `g++`.
